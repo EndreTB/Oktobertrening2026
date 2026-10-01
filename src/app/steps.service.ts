@@ -4,6 +4,11 @@ import { AppConfig, Backend, FirebaseConfig, SignedIn, StoreError } from './back
 
 export type Mode = 'loading' | 'local' | 'login' | 'shared' | 'readonly' | 'error';
 
+/** Devbaren (src/app/dev) finnes bare på localhost. Er den slått på, står tilstanden her og Firebase hoppes over. */
+export const DEV_KEY = 'oktober-2026-dev';
+export const isDevHost = () => ['localhost', '127.0.0.1', '[::1]'].includes(globalThis.location?.hostname);
+function devActive() { try { return isDevHost() && localStorage.getItem(DEV_KEY) !== null; } catch { return false; } }
+
 @Injectable({ providedIn: 'root' })
 export class StepsService {
   readonly entries = signal<Entry[]>([]);
@@ -19,33 +24,44 @@ export class StepsService {
   private unwatch?: () => void;
   private inFlight = false;
   private revision = 0;
-  private storageKey = 'oktober-2026-local';
+  private listeningLocal = false;
+  readonly storageKey = 'oktober-2026-local';
   private identityKey = 'oktober-2026-name-local';
 
   async initialize() {
     try {
+      if (devActive()) { await (await import('./dev/dev-tools')).resumeDev(this); return; }
       const response = await fetch(new URL('config.json', document.baseURI));
       if (!response.ok) throw new Error('Konfigurasjonen kunne ikke lastes. Last siden på nytt.');
       const firebase = (await response.json() as AppConfig).firebase;
       if (firebase?.apiKey && firebase.projectId && firebase.appId) await this.connect(firebase as FirebaseConfig);
-      else {
-        this.mode.set('local');
-        this.restoreName();
-        this.readLocal();
-        window.addEventListener('storage', () => this.readLocal());
-      }
+      else this.startLocal();
     } catch (error) {
       this.mode.set('error');
       this.error.set(error instanceof Error ? error.message : 'Kunne ikke starte siden. Prøv å laste på nytt.');
     }
   }
 
-  private async connect(config: FirebaseConfig) {
-    const backend = this.backend = await this.createBackend(config);
+  private async connect(config: FirebaseConfig) { await this.attach(await this.createBackend(config)); }
+
+  /** Kobler til en backend – Firebase, eller devbarens i minnet. En tidligere tilkobling stoppes. */
+  async attach(backend: Backend) {
+    this.disconnect(); this.mode.set('loading'); this.error.set('');
+    this.backend = backend;
     let user: SignedIn | null = null;
     try { user = await backend.init(); }
     catch { this.error.set('Innloggingen feilet. Prøv igjen.'); }
     if (user) this.start(user); else this.mode.set('login');
+  }
+
+  /** Uten Firebase: skrittene lagres bare i denne nettleseren. */
+  startLocal() {
+    this.disconnect(); this.backend = undefined; this.error.set('');
+    this.mode.set('local');
+    this.restoreName();
+    this.readLocal();
+    if (!this.listeningLocal) window.addEventListener('storage', () => { if (this.mode() === 'local') this.readLocal(); });
+    this.listeningLocal = true;
   }
 
   /** Innlogget: hvem du er ut fra e-posten, og live skritt fra Firestore. */
@@ -86,9 +102,11 @@ export class StepsService {
     await this.backend?.logout();
     this.signedOut();
   }
-  private signedOut() {
+  private signedOut() { this.disconnect(); this.mode.set('login'); }
+  /** Stopper lyttingen og glemmer brukeren og skrittene. Modusen settes av den som kaller. */
+  disconnect() {
     this.unwatch?.(); this.unwatch = undefined;
-    this.mode.set('login'); this.email.set(''); this.lastSynced.set(null);
+    this.email.set(''); this.lastSynced.set(null);
     this.name.set(null); this.entries.set([]);
   }
   get online() { return this.mode() === 'shared' || this.mode() === 'readonly'; }
@@ -103,7 +121,7 @@ export class StepsService {
     this.name.set(name);
     try { localStorage.setItem(this.identityKey, name); } catch { this.error.set('Nettleseren kunne ikke huske navnet ditt.'); }
   }
-  private readLocal() {
+  readLocal() {
     try {
       const data = JSON.parse(localStorage.getItem(this.storageKey) || '[]');
       this.entries.set(Array.isArray(data) ? data.filter((e: Entry) => PEOPLE.includes(e.name) && validEntry(e.day, e.steps, osloDate())) : []);

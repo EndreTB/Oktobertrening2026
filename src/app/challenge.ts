@@ -10,8 +10,12 @@ export function personFromEmail(email: string | null | undefined): Person | null
   const local = (email || '').split('@')[0].toLowerCase();
   return local ? PEOPLE.find(name => local.includes(name.toLowerCase())) ?? null : null;
 }
-export function osloDate(date = new Date()): string {
-  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Oslo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+let todayOverride: string | null = null;
+/** Bare for devbaren på localhost: lar appen tro at det er en annen dag. `null` gir ekte dato. */
+export function overrideToday(day: string | null) { todayOverride = day; }
+export function osloDate(date?: Date): string {
+  if (!date && todayOverride) return todayOverride;
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Oslo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date ?? new Date());
 }
 export function elapsedDays(today: string): number {
   if (today < '2026-10-01') return 0;

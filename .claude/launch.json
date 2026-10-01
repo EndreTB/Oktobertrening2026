@@ -23,6 +23,20 @@
       ],
       "port": 3010,
       "url": "http://localhost:3010"
+    },
+    {
+      "name": "oktober-3020",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "ng",
+        "serve",
+        "--host",
+        "localhost",
+        "--port",
+        "3020"
+      ],
+      "port": 3020,
+      "url": "http://localhost:3020"
     }
   ]
 }

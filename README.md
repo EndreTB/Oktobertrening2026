@@ -15,6 +15,10 @@ npm start
 
 Åpne http://localhost:3000. Med Firebase-oppsett i `public/config.json` vises **Logg inn med Google**. Uten `apiKey`/`appId` er siden en tydelig merket lokal forhåndsvisning.
 
+### Devbar på localhost
+
+På `localhost` ligger en devbar nederst for å hoppe mellom tilstander uten å logge inn: rolle (utlogget, Endre/Stine/Lars, leser, lokal, laster, feil), falsk dato, ferdige skrittdatasett (fra tom til bortenfor 930 000, eller midt i hver verden) og simulerte feil (nettverk, nektet, utløpt innlogging). Første klikk bytter fra Firebase til en database i minnet, og valget huskes til du trykker **Av · ekte Firebase**. Ingenting skrives til Firestore. Koden ligger i `src/app/dev/` og lastes aldri utenfor localhost.
+
 ## Innlogging og lagring i Firebase
 
 Prosjektet er `kchallange-5e855` («10kchallange», Spark-planen holder godt).

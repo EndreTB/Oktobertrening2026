@@ -92,3 +92,4 @@
     </dialog>
   </div>
 }
+@if(devHost){@defer (on idle) {<app-devbar (changed)="syncToday()" (toast)="showToast($event)" (walk)="openPlayback({id:0,from:$event.from,to:$event.to,name:activeName(),preview:false})"/>}}

@@ -4,12 +4,14 @@ import { FormsModule } from '@angular/forms';
 import { StepsService } from './steps.service';
 import { CHAPTERS, PEOPLE, TARGET, TEAM_TARGET, Person, elapsedDays, osloDate, stats, validEntry } from './challenge';
 import { JourneyFrame, LandscapeComponent } from './landscape.component';
+import { DevbarComponent } from './dev/devbar.component';
+import { isDevHost } from './steps.service';
 
 import { JourneyWorld, WORLDS, worldAt, worldProgress } from './worlds';
 
 interface Playback { id: number; from: number; to: number; name: string; preview: boolean; }
 
-@Component({selector:'app-root',standalone:true,imports:[CommonModule,FormsModule,LandscapeComponent],templateUrl:'./app.component.html'})
+@Component({selector:'app-root',standalone:true,imports:[CommonModule,FormsModule,LandscapeComponent,DevbarComponent],templateUrl:'./app.component.html'})
 export class AppComponent {
   readonly store = inject(StepsService);
   readonly people = PEOPLE;
@@ -22,6 +24,7 @@ export class AppComponent {
   readonly playback = signal<Playback|null>(null);
   readonly playbackFrame = signal<JourneyFrame|null>(null);
   private playbackSequence = 0;
+  readonly devHost = isDevHost();
   readonly target = TARGET;
   readonly days = Array.from({length:31},(_,i)=>i+1);
   readonly today = signal(osloDate());
@@ -46,10 +49,12 @@ export class AppComponent {
   help = signal(false);
   account = signal(false);
   private toastTimer?: ReturnType<typeof setTimeout>;
-  constructor(){void this.store.initialize().then(()=>this.loadDay());this.selectedDate=this.clampedDate();setInterval(()=>this.today.set(osloDate()),60000);afterEveryRender(()=>{const dialog=document.querySelector<HTMLDialogElement>('dialog');if(dialog&&!dialog.open)dialog.showModal();});}
+  constructor(){void this.store.initialize().then(()=>this.syncToday());this.selectedDate=this.clampedDate();setInterval(()=>this.today.set(osloDate()),60000);afterEveryRender(()=>{const dialog=document.querySelector<HTMLDialogElement>('dialog');if(dialog&&!dialog.open)dialog.showModal();});}
   @HostListener('window:focus') onFocus(){this.today.set(osloDate());}
   @HostListener('document:keydown.escape') closeDialogs(){this.help.set(false);this.choosing.set(false);this.account.set(false);this.playback.set(null);}
   profile(){if(this.store.mode()==='login')void this.store.login();else if(this.online())this.account.set(true);else this.choosing.set(true);}
+  /** Etter oppstart og når devbaren endrer dato eller skritt. */
+  syncToday(){this.today.set(osloDate());this.selectedDate=this.clampedDate();this.loadDay();}
   private clampedDate(){const day=this.effectiveToday();return day<'2026-10-01'?'2026-10-01':day>'2026-10-31'?'2026-10-31':day;}
   format(value:number){return new Intl.NumberFormat('nb-NO',{maximumFractionDigits:0}).format(value);}
   decimal(value:number){return new Intl.NumberFormat('nb-NO',{maximumFractionDigits:1}).format(value);}

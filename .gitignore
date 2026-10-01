@@ -4,6 +4,7 @@ dist/
 out-tsc/
 playwright-report/
 test-results/
+brag-output/
 .env*
 !.env.example
 .DS_Store
