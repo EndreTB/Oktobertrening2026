@@ -1,0 +1,30 @@
+{
+  "name": "oktober-til-fots",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "ng serve --host localhost --port 3000",
+    "build": "ng build",
+    "build:pages": "ng build --base-href ./ && cp dist/oktober/browser/index.html dist/oktober/browser/404.html",
+    "test": "node --import tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@angular/common": "22.2.1",
+    "@angular/compiler": "22.2.1",
+    "@angular/core": "22.2.1",
+    "@angular/forms": "22.2.1",
+    "@angular/platform-browser": "22.2.1",
+    "firebase": "12.19.0",
+    "rxjs": "~7.8.2",
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "@angular/build": "22.2.0",
+    "@angular/cli": "22.2.0",
+    "@angular/compiler-cli": "22.2.1",
+    "@types/three": "^0.180.0",
+    "tsx": "^4.20.0",
+    "typescript": "~6.0.0"
+  }
+}

@@ -1,0 +1,24 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Samme regel som personFromEmail i src/app/challenge.ts: navnet foran @ i en verifisert e-post.
+    function isPerson(person) {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower().split('@')[0].matches('.*' + person + '.*');
+    }
+
+    match /oktober-2026/{person} {
+      // Alle som er logget inn kan følge med.
+      allow read: if request.auth != null;
+      // Endre, Stine og Lars skriver bare sitt eget dokument: { days: { "2026-10-03": 8123 }, updatedAt }.
+      allow create, update: if person in ['endre', 'stine', 'lars']
+        && isPerson(person)
+        && request.resource.data.keys().hasOnly(['days', 'updatedAt'])
+        && request.resource.data.days is map
+        && request.resource.data.days.size() <= 31
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if false;
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "oktober",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "start"
+      ],
+      "port": 3000,
+      "url": "http://localhost:3000"
+    },
+    {
+      "name": "oktober-3010",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "ng",
+        "serve",
+        "--host",
+        "localhost",
+        "--port",
+        "3010"
+      ],
+      "port": 3010,
+      "url": "http://localhost:3010"
+    }
+  ]
+}
