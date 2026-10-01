@@ -1,5 +1,7 @@
 # Oktober, til fots
 
+**Live:** https://endretb.github.io/Oktobertrening2026/
+
 En oktoberutfordring for **Endre, Stine og Lars**, laget med Angular 22.2.1 og Three.js. Målet er **310 000 skritt hver i oktober 2026** – 10 000 i snitt over alle 31 dager. En rolig dag kan tas igjen senere.
 
 ## Prøv lokalt
@@ -28,12 +30,12 @@ Prosjektet er `kchallange-5e855` («10kchallange», Spark-planen holder godt).
 1. **Project Overview → Add app → Web** (`</>`). Kopier `apiKey`, `messagingSenderId` og `appId` inn i `public/config.json`. Verdiene er offentlige og skal sjekkes inn.
 2. **Security → Authentication → Get started → Sign-in method → Google → Enable.**
 3. **Authentication → Settings → Authorized domains:** `localhost` er med fra før. Legg til `DITT-NAVN.github.io` for GitHub Pages.
-4. **Databases & Storage → Firestore Database → Create database** (production mode, f.eks. `eur3`).
+4. **Databases & Storage → Firestore Database → Create database** (production mode). Opprettet i `europe-north1` med slettebeskyttelse.
 5. **Firestore → Rules:** lim inn innholdet i `firestore.rules` og trykk **Publish**. Alternativt `npx firebase-tools deploy --only firestore:rules`.
 
 ### Publisering på GitHub Pages
 
-1. Legg Pages-domenet inn under Authorized domains (over).
+1. Legg `endretb.github.io` inn under Authorized domains (over).
 2. **Settings → Pages → Source: GitHub Actions**, og push til `main`. Workflowen tester, stopper hvis `apiKey`/`appId` mangler i `public/config.json`, bygger og publiserer.
 
 ## Slik fungerer utfordringen
