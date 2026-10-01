@@ -21,12 +21,11 @@ export class AppComponent {
   readonly nextLight = computed(()=>50000-this.beyondGoal()%50000);
   readonly playback = signal<Playback|null>(null);
   readonly playbackFrame = signal<JourneyFrame|null>(null);
-  private replaySequence = 0;
-  lastWalk: Playback|null = null;
+  private playbackSequence = 0;
   readonly target = TARGET;
   readonly days = Array.from({length:31},(_,i)=>i+1);
   readonly today = signal(osloDate());
-  readonly effectiveToday = computed(()=>this.store.demo()?'2026-10-12':this.today());
+  readonly effectiveToday = this.today;
   readonly elapsed = computed(()=>elapsedDays(this.effectiveToday()));
   readonly activeName = computed(()=>this.store.name() || 'Endre');
   readonly mine = computed(()=>stats(this.store.entries(),this.activeName(),this.effectiveToday()));
@@ -36,8 +35,8 @@ export class AppComponent {
   readonly unlocked = computed(()=>CHAPTERS.filter(c=>this.teamKm()>=c.km).length);
   readonly ranking = computed(()=>PEOPLE.map(name=>({name,...stats(this.store.entries(),name,this.effectiveToday())})).sort((a,b)=>b.total-a.total));
   readonly goalPeople = computed(()=>this.ranking().filter(p=>p.total>=TARGET).length);
-  readonly canLog = computed(()=>this.store.demo()||(this.effectiveToday()>='2026-10-01'&&(this.store.mode()==='shared'||this.store.mode()==='local')));
-  readonly online = computed(()=>!this.store.demo()&&(this.store.mode()==='shared'||this.store.mode()==='readonly'));
+  readonly canLog = computed(()=>this.effectiveToday()>='2026-10-01'&&(this.store.mode()==='shared'||this.store.mode()==='local'));
+  readonly online = computed(()=>this.store.mode()==='shared'||this.store.mode()==='readonly');
   readonly dateMax = computed(()=>this.effectiveToday()>'2026-10-31'?'2026-10-31':this.effectiveToday());
   selectedDate = '2026-10-01';
   stepValue: number | null = null;
@@ -50,7 +49,7 @@ export class AppComponent {
   constructor(){void this.store.initialize().then(()=>this.loadDay());this.selectedDate=this.clampedDate();setInterval(()=>this.today.set(osloDate()),60000);afterEveryRender(()=>{const dialog=document.querySelector<HTMLDialogElement>('dialog');if(dialog&&!dialog.open)dialog.showModal();});}
   @HostListener('window:focus') onFocus(){this.today.set(osloDate());}
   @HostListener('document:keydown.escape') closeDialogs(){this.help.set(false);this.choosing.set(false);this.account.set(false);this.playback.set(null);}
-  profile(){if(this.store.mode()==='login'&&!this.store.demo())void this.store.login();else if(this.online())this.account.set(true);else this.choosing.set(true);}
+  profile(){if(this.store.mode()==='login')void this.store.login();else if(this.online())this.account.set(true);else this.choosing.set(true);}
   private clampedDate(){const day=this.effectiveToday();return day<'2026-10-01'?'2026-10-01':day>'2026-10-31'?'2026-10-31':day;}
   format(value:number){return new Intl.NumberFormat('nb-NO',{maximumFractionDigits:0}).format(value);}
   decimal(value:number){return new Intl.NumberFormat('nb-NO',{maximumFractionDigits:1}).format(value);}
@@ -67,30 +66,22 @@ export class AppComponent {
     this.formError.set('');
     const before=this.teamTotal();
     const walker=this.activeName();
-    if(await this.store.save(this.selectedDate,this.stepValue)){this.lastWalk=null;this.showToast(this.store.demo()?'Demoskritt oppdatert.':this.store.mode()==='shared'?'Skrittene er lagret og delt med gjengen!':'Skrittene er lagret på denne enheten.');
-      if(this.teamTotal()>before) {
-        this.lastWalk={id:++this.replaySequence,from:before,to:this.teamTotal(),name:walker,preview:false};
-        this.openPlayback(this.lastWalk);
-      }
+    if(await this.store.save(this.selectedDate,this.stepValue)){this.showToast(this.store.mode()==='shared'?'Skrittene er lagret og delt med gjengen!':'Skrittene er lagret på denne enheten.');
+      if(this.teamTotal()>before)this.openPlayback({id:0,from:before,to:this.teamTotal(),name:walker,preview:false});
     }
   }
   showToast(message:string){clearTimeout(this.toastTimer);this.toast.set(message);this.toastTimer=setTimeout(()=>this.toast.set(''),5000);}
-  demo(){this.lastWalk=null;this.store.startDemo();this.selectedDate='2026-10-12';this.loadDay();}
-  async exitDemo(){this.lastWalk=null;await this.store.stopDemo();this.selectedDate=this.clampedDate();this.loadDay();}
   async share(){if(this.store.mode()==='local'){this.help.set(true);return;}try{await navigator.clipboard.writeText(this.store.shareLink());this.showToast('Lenken er kopiert. Alle logger inn med sin egen Google-konto.');}catch{this.showToast('Kunne ikke kopiere. Del adressen til siden – alle logger inn med Google.');}}
   openPlayback(walk: Playback) {
     this.playbackFrame.set({world:worldAt(walk.from),steps:walk.from,moving:false,finished:false});
-    this.playback.set({...walk,id:++this.replaySequence});
+    this.playback.set({...walk,id:++this.playbackSequence});
   }
+  /** Verdener oppdages underveis: bare de gjengen har nådd kan utforskes. */
+  isOpen(world: JourneyWorld) { return this.teamTotal()>=world.start; }
   previewWorld(world: JourneyWorld) {
+    if(!this.isOpen(world))return;
     const length=world.id==='light'?180000:world.end-world.start;
     this.openPlayback({id:0,from:world.start+length*.15,to:world.start+length*.48,name:this.activeName(),preview:true});
   }
-  previewPortal(world: JourneyWorld) {
-    const boundary=world.id==='light'?1110000:world.end;
-    this.openPlayback({id:0,from:boundary-14000,to:boundary+14000,name:this.activeName(),preview:true});
-  }
-  replay() { const walk=this.playback();if(walk)this.openPlayback(walk); }
-  replayLastWalk() { if(this.lastWalk)this.openPlayback(this.lastWalk); }
   nextChapter(){return CHAPTERS.find(c=>this.teamKm()<c.km)||CHAPTERS[CHAPTERS.length-1];}
 }

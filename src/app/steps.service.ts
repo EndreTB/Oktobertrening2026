@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { Entry, Person, PEOPLE, demoEntries, osloDate, personFromEmail, validEntry } from './challenge';
+import { Entry, Person, PEOPLE, osloDate, personFromEmail, validEntry } from './challenge';
 import { AppConfig, Backend, FirebaseConfig, SignedIn, StoreError } from './backend';
 
 export type Mode = 'loading' | 'local' | 'login' | 'shared' | 'readonly' | 'error';
@@ -9,7 +9,6 @@ export class StepsService {
   readonly entries = signal<Entry[]>([]);
   readonly name = signal<Person | null>(null);
   readonly mode = signal<Mode>('loading');
-  readonly demo = signal(false);
   readonly error = signal('');
   readonly saving = signal(false);
   readonly lastSynced = signal<Date | null>(null);
@@ -33,7 +32,7 @@ export class StepsService {
         this.mode.set('local');
         this.restoreName();
         this.readLocal();
-        window.addEventListener('storage', () => { if (!this.demo()) this.readLocal(); });
+        window.addEventListener('storage', () => this.readLocal());
       }
     } catch (error) {
       this.mode.set('error');
@@ -62,7 +61,6 @@ export class StepsService {
   private watch() {
     this.unwatch?.();
     this.unwatch = this.backend?.watch(entries => {
-      if (this.demo()) return;
       this.entries.set(entries); this.lastSynced.set(new Date()); this.error.set('');
     }, error => { this.unwatch?.(); this.unwatch = undefined; this.fail(error); });
   }
@@ -91,7 +89,7 @@ export class StepsService {
   private signedOut() {
     this.unwatch?.(); this.unwatch = undefined;
     this.mode.set('login'); this.email.set(''); this.lastSynced.set(null);
-    if (!this.demo()) { this.name.set(null); this.entries.set([]); }
+    this.name.set(null); this.entries.set([]);
   }
   get online() { return this.mode() === 'shared' || this.mode() === 'readonly'; }
 
@@ -99,11 +97,11 @@ export class StepsService {
     const saved = localStorage.getItem(this.identityKey);
     if (PEOPLE.includes(saved as Person)) this.name.set(saved as Person);
   }
-  /** Bare lokalt og i demo – med Firebase bestemmer e-posten hvem du er. */
+  /** Bare lokalt – med Firebase bestemmer e-posten hvem du er. */
   chooseName(name: Person) {
-    if (this.online && !this.demo()) return;
+    if (this.online) return;
     this.name.set(name);
-    if (!this.demo()) { try { localStorage.setItem(this.identityKey, name); } catch { this.error.set('Nettleseren kunne ikke huske navnet ditt.'); } }
+    try { localStorage.setItem(this.identityKey, name); } catch { this.error.set('Nettleseren kunne ikke huske navnet ditt.'); }
   }
   private readLocal() {
     try {
@@ -113,27 +111,25 @@ export class StepsService {
   }
   /** Henter alt på nytt og starter lyttingen igjen om den har stoppet («Prøv igjen»). */
   async refresh() {
-    if (!this.backend || !this.online || this.inFlight || this.saving() || this.demo()) return;
+    if (!this.backend || !this.online || this.inFlight || this.saving()) return;
     this.inFlight = true;
     const revision = this.revision;
     try {
       const entries = await this.backend.readAll();
-      if (!this.demo() && revision === this.revision) { this.entries.set(entries); this.lastSynced.set(new Date()); this.error.set(''); }
+      if (revision === this.revision) { this.entries.set(entries); this.lastSynced.set(new Date()); this.error.set(''); }
       if (!this.unwatch) this.watch();
     } catch (error) { this.fail(error); }
     finally { this.inFlight = false; }
   }
   async save(day: string, steps: number): Promise<boolean> {
     const name = this.name();
-    const today = this.demo() ? '2026-10-12' : osloDate();
-    if (!name || !validEntry(day, steps, today) || this.saving()) return false;
-    if (!this.demo() && this.mode() !== 'shared' && this.mode() !== 'local') return false;
+    if (!name || !validEntry(day, steps, osloDate()) || this.saving()) return false;
+    if (this.mode() !== 'shared' && this.mode() !== 'local') return false;
     this.saving.set(true); this.error.set(''); this.revision++;
-    if (this.mode() === 'local' && !this.demo()) this.readLocal();
+    if (this.mode() === 'local') this.readLocal();
     try {
       const next = [...this.entries().filter(e => !(e.name === name && e.day === day)), {name, day, steps}];
-      if (this.demo()) this.entries.set(next);
-      else if (this.mode() === 'shared' && this.backend) {
+      if (this.mode() === 'shared' && this.backend) {
         await this.backend.saveDay(name, day, steps);
         this.entries.set(next); this.lastSynced.set(new Date());
       } else if (this.mode() === 'local') { localStorage.setItem(this.storageKey, JSON.stringify(next)); this.entries.set(next); }
@@ -148,13 +144,6 @@ export class StepsService {
       return false;
     }
     finally { this.saving.set(false); }
-  }
-  private onlineName: Person | null = null;
-  startDemo() { this.revision++; this.onlineName = this.name(); this.demo.set(true); this.entries.set(demoEntries()); this.name.set('Endre'); this.error.set(''); }
-  async stopDemo() {
-    this.revision++; this.demo.set(false); this.entries.set([]);
-    if (this.online) { this.name.set(this.onlineName); await this.refresh(); }
-    else { this.name.set(null); this.restoreName(); if (this.mode() === 'local') this.readLocal(); }
   }
   shareLink() { return `${location.origin}${location.pathname}`; }
 }

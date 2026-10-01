@@ -6,7 +6,7 @@ import {fakeFirestore} from './fake-backend';
 
 const config = {firebase: {apiKey: 'test-key', authDomain: 'test.firebaseapp.com', projectId: 'test', appId: '1:2:web:3'}};
 
-test('Firebase: innlogging, hvem som er hvem, live deling, lesetilgang, feil og isolert demo', async t => {
+test('Firebase: innlogging, hvem som er hvem, live deling, lesetilgang og feil', async t => {
   t.mock.timers.enable({apis: ['Date'], now: new Date('2026-10-12T12:00:00Z')});
   const saved = new Map<string,string>();
   const fake = fakeFirestore();
@@ -47,14 +47,6 @@ test('Firebase: innlogging, hvem som er hvem, live deling, lesetilgang, feil og 
     assert.equal(endre.entries().find(e => e.name === 'Endre' && e.day === '2026-10-12')?.steps, 13000); assert.match(endre.error(), /ikke lagret/);
     await endre.refresh(); assert.match(endre.error(), /kontakt med Firebase/);
     fake.state.offline = false; await endre.refresh(); assert.equal(endre.error(), '');
-
-    // Demo endrer aldri ekte data, og live oppdateringer overskriver ikke demoen.
-    const writes = fake.state.writes;
-    endre.startDemo(); assert.equal(await endre.save('2026-10-12', 15000), true);
-    await stine.save('2026-10-10', 4000);
-    assert.equal(fake.state.writes, writes + 1); assert.equal(fake.docs.get('endre')!.days['2026-10-12'], 13000);
-    assert.notEqual(endre.entries().find(e => e.name === 'Stine' && e.day === '2026-10-10')?.steps, 4000);
-    await endre.stopDemo(); assert.equal(endre.name(), 'Endre'); assert.equal(endre.entries().length, 4);
 
     assert.equal(await endre.save('2026-10-13', 12000), false);
     assert.equal(await endre.save('2026-10-12', -10), false);

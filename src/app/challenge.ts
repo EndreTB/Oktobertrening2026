@@ -44,6 +44,3 @@ export const CHAPTERS = WORLDS.map((world, index) => ({
   ...world, number: String(index + 1).padStart(2, '0'), km: world.start * .00075,
   place: world.id === 'light' ? 'DEN UENDELIGE REISEN' : 'EN NY VERDEN',
 }));
-export function demoEntries(): Entry[] {
-  return PEOPLE.flatMap((name, p) => Array.from({length: 12}, (_, i) => ({name, day: `2026-10-${String(i+1).padStart(2,'0')}`, steps: [10420, 8300, 12150, 11280, 9600, 14200, 10200, 7800, 11400, 12500, 10750, 8640][i] + [0, 860, -520][p]})));
-}

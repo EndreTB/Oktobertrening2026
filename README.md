@@ -13,7 +13,7 @@ npm ci
 npm start
 ```
 
-Åpne http://localhost:3000. Med Firebase-oppsett i `public/config.json` vises **Logg inn med Google**. Uten `apiKey`/`appId` er siden en tydelig merket lokal forhåndsvisning. **Prøv med demoskritt** nederst viser en oktober i gang; demoen er i minnet og endrer aldri ekte registreringer.
+Åpne http://localhost:3000. Med Firebase-oppsett i `public/config.json` vises **Logg inn med Google**. Uten `apiKey`/`appId` er siden en tydelig merket lokal forhåndsvisning.
 
 ## Innlogging og lagring i Firebase
 
@@ -47,7 +47,7 @@ Prosjektet er `kchallange-5e855` («10kchallange», Spark-planen holder godt).
 - Alle tre har hvert sitt mål på 310 000. Historiens felles mål er 930 000. Én person kan bidra ekstra til historien uten at de andres personlige mål markeres som nådd.
 - 0,75 meter per skritt gir 232,5 km per person og 697,5 km samlet. Dette er et grovt anslag, ikke målte GPS-data. Luftlinjesammenligningene er avrundede.
 - Fellesdata oppdateres live fra Firestore. En vellykket lagring bekreftes først når Firestore har svart (maks 10 sekunder). Ved nettverksfeil vises feilmelding og tallet beholdes i feltet for nytt forsøk.
-- 3D-ruten følger gruppens fremdrift. Seks verdener låses opp av samlet skrittantall. Etter en vellykket registrering vises en animert turfigur med følge-kamera. Bare økningen siden forrige registrering på datoen gir ny forflytning. Three.js lastes separat fra hovedappen, pauser rendering når scenen ikke er synlig, begrenser pikseloppløsning og respekterer redusert bevegelse. Registrering virker også uten WebGL.
+- 3D-ruten følger gruppens fremdrift. Seks verdener låses opp av samlet skrittantall. De er skjult til gjengen når dem – navn, ikon og innhold vises først da, og bare oppdagede verdener kan utforskes. Etter en vellykket registrering vises en animert turfigur med følge-kamera. Bare økningen siden forrige registrering på datoen gir ny forflytning. Three.js lastes separat fra hovedappen, pauser rendering når scenen ikke er synlig, begrenser pikseloppløsning og respekterer redusert bevegelse. Registrering virker også uten WebGL.
 
 ## Tilgang og personvern
 
@@ -60,7 +60,7 @@ npm test
 npm run build
 ```
 
-Testene dekker månedsgrensene, tidssone, nullverdier, dagsnitt, gjenstående dagsmål, distanse, strek, e-post → person, tolking av Firestore-dokumenter, og et simulert Firestore (`tests/fake-backend.ts`): live deling mellom brukere, lesetilgang, kun eget dokument, nettverksfeil, utlogging, lokal modus og isolert demo. Testene går ikke mot ekte Firebase.
+Testene dekker månedsgrensene, tidssone, nullverdier, dagsnitt, gjenstående dagsmål, distanse, strek, e-post → person, tolking av Firestore-dokumenter, og et simulert Firestore (`tests/fake-backend.ts`): live deling mellom brukere, lesetilgang, kun eget dokument, nettverksfeil, utlogging og lokal modus. Testene går ikke mot ekte Firebase.
 
 `npm run build:pages` bygger med relativ base-adresse. Siden bruker seksjonsankere fremfor klientruter og trenger ingen SPA-404-omskriving.
 
