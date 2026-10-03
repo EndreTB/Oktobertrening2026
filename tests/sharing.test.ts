@@ -29,6 +29,12 @@ test('Firebase: innlogging, hvem som er hvem, live deling, lesetilgang og feil',
     assert.equal(stine.name(), 'Stine');
     assert.equal(kari.mode(), 'readonly'); assert.equal(kari.name(), null);
 
+    // Plassen er låst til kontoen som tok den: en ny «Stine»-konto får bare følge med.
+    assert.equal(fake.spots.get('stine'), 'stine@firma.no');
+    const stine2 = service('stine.hansen@gmail.com'); await stine2.initialize();
+    assert.equal(stine2.mode(), 'readonly'); assert.equal(stine2.name(), null); assert.equal(stine2.spotTaken(), 'Stine');
+    assert.equal(await stine2.save('2026-10-12', 5000), false);
+
     // Navnet kan ikke byttes når e-posten bestemmer hvem du er.
     endre.chooseName('Lars'); assert.equal(endre.name(), 'Endre');
 

@@ -24,10 +24,10 @@ På `localhost` ligger en devbar nederst for å hoppe mellom tilstander uten å 
 Prosjektet er `kchallange-5e855` («10kchallange», Spark-planen holder godt).
 
 - **Innlogging:** Firebase Authentication med Google, i popup (virker på GitHub Pages uten Firebase Hosting). Firebase husker innloggingen i nettleseren.
-- **Hvem er hvem:** Inneholder delen foran `@` i Google-e-posten `endre`, `stine` eller `lars`, er du den personen og registrerer skritt på deg selv. Andre som logger inn får lesetilgang. Navnet kan ikke velges manuelt når Firebase er koblet til.
+- **Hvem er hvem:** Hver person har én plass i `oktober-2026-plasser/{endre|stine|lars}` med `{ uid, email }`. Første verifiserte Google-konto der delen foran `@` inneholder navnet, tar plassen; deretter er den låst. Andre kontoer med samme navn i e-posten får bare lesetilgang. Skal en plass flyttes, slett dokumentet i Firebase-konsollen – da tar neste innlogging den.
 - **Lagring:** Firestore, ett dokument per person: `oktober-2026/endre` (og `stine`, `lars`) med `{ days: { "2026-10-03": 8123, … }, updatedAt }`. Lagring slår sammen bare den ene dagen inn i `days`, så ingen enheter overskriver hverandre. Se `src/app/firebase-backend.ts`.
 - **Live:** Alle lytter på samlingen, så nye skritt dukker opp hos de andre med en gang.
-- **Regler:** `firestore.rules` krever innlogging for å lese, og at du bare skriver ditt eget dokument (verifisert e-post som matcher navnet). Vil dere stramme inn, bytt `matches(...)` med en liste over de tre e-postadressene.
+- **Regler:** `firestore.rules` krever innlogging for å lese, og at du bare skriver dokumentet til plassen kontoen din eier. Plasser kan opprettes én gang, aldri endres eller slettes fra appen.
 
 ### Oppsett i Firebase-konsollen
 

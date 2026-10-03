@@ -86,7 +86,8 @@ export class AppComponent {
   previewWorld(world: JourneyWorld) {
     if(!this.isOpen(world))return;
     const length=world.id==='light'?180000:world.end-world.start;
-    this.openPlayback({id:0,from:world.start+length*.15,to:world.start+length*.48,name:this.activeName(),preview:true});
+    const fullTour=world.id==='forest'||world.id==='body';
+    this.openPlayback({id:0,from:fullTour?world.start:world.start+length*.15,to:fullTour?world.end-1:world.start+length*.48,name:this.activeName(),preview:true});
   }
   nextChapter(){return CHAPTERS.find(c=>this.teamKm()<c.km)||CHAPTERS[CHAPTERS.length-1];}
 }

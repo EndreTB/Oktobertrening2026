@@ -36,6 +36,7 @@ export class DevBackend implements Backend {
   async init() { return user(devState().role); }
   async login() { save({ role: 'Endre' }); return user('Endre'); }
   async logout() { save({ role: 'login' }); }
+  async claimSpot(person: Person) { return devState().role === person; }
   async readAll() {
     await delay(300);
     if (devState().failure === 'offline') throw new StoreError('request', 'Firestore svarte ikke.');

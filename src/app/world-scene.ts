@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { JourneyWorld } from './worlds';
-import { buildRealm } from './realm-environments';
+import { buildRealm, type RealmComposition } from './realm-environments';
 import { naturalTrail, sculptedTerrain } from './landscape-details';
 
 export interface WorldScene {
@@ -15,6 +15,8 @@ export interface WorldScene {
   overview: THREE.Vector3;
   lookAt: THREE.Vector3;
   followOffset: THREE.Vector3;
+  cameraPose?: RealmComposition['cameraPose'];
+  animate?: RealmComposition['animate'];
 }
 const material = (color: THREE.ColorRepresentation, glow = 0) => new THREE.MeshStandardMaterial({ color, roughness: .72, emissive: color, emissiveIntensity: glow });
 function mesh(geometry: THREE.BufferGeometry, mat: THREE.Material, position: [number, number, number], parent: THREE.Object3D) {
@@ -140,18 +142,32 @@ export function createWorld(info: JourneyWorld, person: string, steps = 0): Worl
   const boots=material('#243448'), skin=material('#f0d2b1'), hat=material('#f5e9b4');
   mesh(new THREE.CapsuleGeometry(.28,.44,4,10),jacket,[0,1.03,0],wanderer);
   mesh(new THREE.SphereGeometry(.29,14,10),skin,[0,1.65,0],wanderer);
-  mesh(new THREE.SphereGeometry(.31,12,8,0,Math.PI*2,0,Math.PI/2),hat,[0,1.73,0],wanderer);
-  mesh(new THREE.SphereGeometry(.1,8,6),jacket,[0,2.06,0],wanderer);
-  mesh(new THREE.BoxGeometry(.43,.56,.27),material('#718c66'),[0,1.14,-.29],wanderer);
+  if(info.id==='body') {
+    const helmet=mesh(new THREE.SphereGeometry(.43,24,16),new THREE.MeshPhysicalMaterial({color:'#d0faff',transparent:true,opacity:.18,roughness:.08,metalness:.1,depthWrite:false}),[0,1.67,0],wanderer);helmet.castShadow=false;
+    const collar=mesh(new THREE.TorusGeometry(.3,.06,8,24),material('#f1d49b'),[0,1.4,0],wanderer);collar.rotation.x=Math.PI/2;
+    for(const x of [-.16,.16])mesh(new THREE.CapsuleGeometry(.12,.38,4,10),material('#d7e4bf'),[x,1.08,-.35],wanderer);
+    mesh(new THREE.BoxGeometry(.19,.11,.12),boots,[0,1.5,.3],wanderer);
+  } else {
+    mesh(new THREE.SphereGeometry(.31,12,8,0,Math.PI*2,0,Math.PI/2),hat,[0,1.73,0],wanderer);
+    mesh(new THREE.SphereGeometry(.1,8,6),jacket,[0,2.06,0],wanderer);
+    mesh(new THREE.BoxGeometry(.43,.56,.27),material('#718c66'),[0,1.14,-.29],wanderer);
+  }
   for(const side of [-1,1]) {
     const leg=new THREE.Group();leg.position.set(side*.17,.77,0);mesh(new THREE.CapsuleGeometry(.1,.37,3,7),boots,[0,-.26,0],leg);mesh(new THREE.BoxGeometry(.23,.16,.35),boots,[0,-.54,.07],leg);wanderer.add(leg);limbs.push(leg);
     const arm=new THREE.Group();arm.position.set(side*.36,1.34,0);mesh(new THREE.CapsuleGeometry(.08,.32,3,7),jacket,[0,-.24,0],arm);mesh(new THREE.SphereGeometry(.085,8,6),skin,[0,-.48,0],arm);wanderer.add(arm);limbs.push(arm);
   }
   for(const x of [-.1,.1])mesh(new THREE.SphereGeometry(.035,6,6),boots,[x,1.66,.27],wanderer);
-  wanderer.scale.setScalar(1.15);group.add(wanderer);
+  wanderer.scale.setScalar(info.id==='body'?.82:1.15);group.add(wanderer);
   wanderer.traverse(object=>{if(object instanceof THREE.Mesh)object.castShadow=true;});
   const halo=mesh(new THREE.TorusGeometry(.55,.025,5,30),new THREE.MeshBasicMaterial({color:info.color}),[0,.03,0],wanderer);halo.rotation.x=-Math.PI/2;
   const portal=new THREE.Group();portal.position.copy(route.getPoint(1));portal.position.y+=1.7;
+  // Place the gateway beside the landing, opposite the orbiting camera's shoulder.
+  if(info.id==='forest') {
+    const inward=new THREE.Vector3(-portal.position.x,0,-6.8-portal.position.z).normalize();
+    portal.position.addScaledVector(inward,1.2).addScaledVector(new THREE.Vector3(-inward.z,0,inward.x),2.7);
+    portal.rotation.y=Math.atan2(-inward.x,-inward.z);
+  }
+  if(info.id==='body')portal.position.z-=2;
   mesh(new THREE.TorusGeometry(1.4,.11,9,48),material(info.color,1),[0,0,0],portal);
   const veil=mesh(new THREE.CircleGeometry(1.3,48),new THREE.MeshBasicMaterial({color:info.color,transparent:true,opacity:.14,side:THREE.DoubleSide}),[0,0,0],portal);veil.rotation.y=.05;
   if(info.id==='light'){
@@ -165,5 +181,5 @@ export function createWorld(info: JourneyWorld, person: string, steps = 0): Worl
   moteGeo.setAttribute('position',new THREE.Float32BufferAttribute(motes,3));
   const particles=new THREE.Points(moteGeo,new THREE.PointsMaterial({color:info.color,size:info.id==='cosmos'?.12:.075,transparent:true,opacity:.7}));group.add(particles);
   floaters.forEach(object=>object.userData['baseY']=object.position.y);
-  return {group,route,trail,wanderer,limbs,portal,floaters,particles,overview:composition?.overview??new THREE.Vector3(25,24,35),lookAt:composition?.lookAt??new THREE.Vector3(0,info.id==='light'?5:4,-1),followOffset:composition?.followOffset??new THREE.Vector3(8,6,11)};
+  return {group,route,trail,wanderer,limbs,portal,floaters,particles,cameraPose:composition?.cameraPose,animate:composition?.animate,overview:composition?.overview??new THREE.Vector3(25,24,35),lookAt:composition?.lookAt??new THREE.Vector3(0,info.id==='light'?5:4,-1),followOffset:composition?.followOffset??new THREE.Vector3(8,6,11)};
 }

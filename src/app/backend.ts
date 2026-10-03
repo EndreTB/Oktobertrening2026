@@ -14,6 +14,8 @@ export interface SignedIn { email: string; name: string; }
  * (håndhevet i firestore.rules), så ingen kan overskrive hverandre.
  */
 export const COLLECTION = 'oktober-2026';
+/** Hvilken Google-konto som eier hver persons plass: `oktober-2026-plasser/endre` med `{ uid, email }`. */
+export const SPOTS = 'oktober-2026-plasser';
 export const docId = (person: Person) => person.toLowerCase();
 
 export class StoreError extends Error {
@@ -27,6 +29,11 @@ export interface Backend {
   /** Null hvis brukeren lukket innloggingsvinduet. */
   login(): Promise<SignedIn | null>;
   logout(): Promise<void>;
+  /**
+   * Tar personens plass for den innloggede kontoen hvis den er ledig. Sann hvis kontoen eier plassen,
+   * usann hvis en annen konto allerede har den.
+   */
+  claimSpot(person: Person): Promise<boolean>;
   readAll(): Promise<Entry[]>;
   /** Live oppdateringer av alle tre dokumentene. Returnerer en funksjon som stopper lyttingen. */
   watch(next: (entries: Entry[]) => void, fail: (error: StoreError) => void): () => void;

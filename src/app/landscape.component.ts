@@ -76,7 +76,8 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
     const reduced=matchMedia('(prefers-reduced-motion: reduce)');
     const legs=journeyLegs(this.fromSteps,this.steps);
     let shownId='',lastLeg=-1,elapsed=0,lastTime=0,lastReport=-1,visible=true,mx=0,my=0,flashAge=5,finishedReported=false;
-    const legDurations=legs.map(leg=>leg.world.id==='cosmos'?18:12);
+    let cameraCut=true,overviewBlend=0;
+    const legDurations=legs.map(leg=>leg.world.id==='body'?Math.max(12,(leg.to-leg.from)*55):leg.world.id==='forest'?Math.max(12,(leg.to-leg.from)*40):leg.world.id==='cosmos'?18:12);
     const cameraTarget=new THREE.Vector3(0,3,0);
 
     const desiredPosition=new THREE.Vector3(),desiredTarget=new THREE.Vector3();
@@ -89,13 +90,20 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
     const build=(info:JourneyWorld,flash:boolean,steps:number)=>{
       if(this.built){scene.remove(this.built.group);disposeWorld(this.built.group);}
       this.built=createWorld(info,this.person,steps);scene.add(this.built.group);shownId=sceneKey(info,steps);
+      camera.far=info.id==='body'?500:200;camera.updateProjectionMatrix();
+      cameraCut=true;
       renderer.toneMapping=THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure=info.id==='light'?1.05:1.15;renderer.shadowMap.enabled=true;sun.castShadow=true;
       ambient.intensity=info.id==='forest'?1.65:1.45;sun.intensity=3.3;fill.intensity=1.8;
+      ambient.color.set(info.id==='body'?'#9ec6ae':'#ffefd8');
+      sun.color.set(info.id==='body'?'#ffe1a2':'#ffe0b5');
+      if(info.id==='body'){ambient.intensity=.85;sun.intensity=4.5;fill.intensity=.95;renderer.toneMappingExposure=1.08;}
       sun.position.set(-18,32,10);
-      const fillColors={mountain:'#b8d7d1',forest:'#96d7ba',body:'#b792ce',micro:'#91b5ed',cosmos:'#8ccedc',light:'#b5bde4'};
+      if(info.id==='body')sun.position.set(-36,88,28);
+      Object.assign(sun.shadow.camera,info.id==='body'?{left:-65,right:65,top:85,bottom:-50,far:220}:{left:-25,right:25,top:32,bottom:-22,far:85});sun.shadow.camera.updateProjectionMatrix();
+      const fillColors={mountain:'#b8d7d1',forest:'#96d7ba',body:'#50a7a4',micro:'#91b5ed',cosmos:'#8ccedc',light:'#b5bde4'};
       fill.color.set(fillColors[info.id]);
-      scene.fog=new THREE.FogExp2(info.background,info.id==='forest'?.01:.007);
+      scene.fog=new THREE.FogExp2(info.background,info.id==='body'?.011:info.id==='forest'?.01:.007);
       renderer.setClearColor(info.background,this.cinematic?1:0);
       ambient.groundColor.set(info.background);
       this.zone.run(()=>{this.currentWorld.set(info);this.flashing.set(flash&&!reduced.matches);this.exploration.set(null);});flashAge=0;
@@ -131,20 +139,26 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
       built.wanderer.position.y+=Math.abs(gait)*.07;
       built.limbs.forEach((limb,i)=>limb.rotation.x=gait*(i===0||i===3?1:-1)*.6);
       if(!reduced.matches){
+        built.animate?.(elapsed,dt);
         built.portal.rotation.z=elapsed*.18;built.portal.scale.setScalar((built.portal.userData['baseScale']??1)*(1+Math.sin(elapsed*2)*.025));
         built.floaters.forEach((object,i)=>{
           if(object.userData['pulse']){object.scale.setScalar(object.userData['baseScale']*(1+Math.pow(Math.max(0,Math.sin(elapsed*5)),6)*.045));}
           else {object.position.y=object.userData['baseY']+Math.sin(elapsed*.7+i)*.25;object.rotation.y+=dt*.12;}
         });
         built.particles.rotation.y+=dt*.013;
-        if(!this.cinematic){built.group.rotation.y+=(mx*.16-built.group.rotation.y)*.03;built.group.rotation.x+=(my*.04-built.group.rotation.x)*.03;}
+        if(!this.cinematic&&!built.cameraPose){built.group.rotation.y+=(mx*.16-built.group.rotation.y)*.03;built.group.rotation.x+=(my*.04-built.group.rotation.x)*.03;}
       }
-      if(this.cinematic){
+      if(built.cameraPose){
+        const overview=!this.cinematic||this.mapView()==='overview'?1:0;
+        overviewBlend=cameraCut||reduced.matches?overview:THREE.MathUtils.lerp(overviewBlend,overview,1-Math.exp(-dt*3));
+        const pose=built.cameraPose(point,camera.aspect,overviewBlend);
+        desiredPosition.copy(pose.position);desiredTarget.copy(pose.target);
+        // Keep the immense reef legible when a narrow screen pulls the overview far back.
+        if(info.id==='body'&&scene.fog instanceof THREE.FogExp2){
+          scene.fog.density=THREE.MathUtils.lerp(.009,.0048,overviewBlend)/THREE.MathUtils.lerp(1,Math.max(1,1.12/camera.aspect),overviewBlend);
+        }
+      } else if(this.cinematic){
         const zoom=camera.aspect<.85?1.5:1;
-        desiredTarget.copy(point).add(new THREE.Vector3(0,1.2,0));
-        desiredPosition.copy(point).add(built.followOffset.clone().multiplyScalar(zoom));
-        // End with a wide view so the new surroundings are easy to explore.
-        // Give every world the same close walking view and complete map overview.
         const angle=location*.45;
         desiredPosition.copy(point).add(built.followOffset.clone().applyAxisAngle(new THREE.Vector3(0,1,0),angle).multiplyScalar(zoom));
         desiredTarget.copy(point).add(new THREE.Vector3(0,1.4,0));
@@ -153,8 +167,14 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
           const framing=Math.max(1,.95/camera.aspect);
           desiredPosition.copy(built.lookAt).add(built.overview.clone().sub(built.lookAt).multiplyScalar(framing));desiredTarget.copy(built.lookAt);
         }
-      } else {desiredPosition.copy(built.overview).multiplyScalar(camera.aspect<.85?1.15:1);desiredTarget.copy(built.lookAt);}
-      if(elapsed<.05||reduced.matches){camera.position.copy(desiredPosition);cameraTarget.copy(desiredTarget);}
+      } else {
+        const framing=camera.aspect<.85?1.15:1;
+        desiredPosition.copy(built.lookAt).add(built.overview.clone().sub(built.lookAt).multiplyScalar(framing));desiredTarget.copy(built.lookAt);
+      }
+      // Custom camera paths keep the walker framed even when scrubbing across the scene.
+      if(built.cameraPose||cameraCut||elapsed<.05||reduced.matches){
+        camera.position.copy(desiredPosition);cameraTarget.copy(desiredTarget);cameraCut=false;
+      }
       else {camera.position.lerp(desiredPosition,1-Math.exp(-dt*2));cameraTarget.lerp(desiredTarget,1-Math.exp(-dt*3));}
       camera.lookAt(cameraTarget);
       if(this.cinematic&&(elapsed-lastReport>.15||done&&!finishedReported)){

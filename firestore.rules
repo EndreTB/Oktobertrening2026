@@ -7,13 +7,30 @@ service cloud.firestore {
         && request.auth.token.email_verified == true
         && request.auth.token.email.lower().split('@')[0].matches('.*' + person + '.*');
     }
+    function owns(person) {
+      return exists(/databases/$(database)/documents/oktober-2026-plasser/$(person))
+        && get(/databases/$(database)/documents/oktober-2026-plasser/$(person)).data.uid == request.auth.uid;
+    }
+
+    // Én plass per person, eid av én Google-konto: { uid, email }. Den første som passer med navnet tar plassen,
+    // deretter er den låst. Plassene kan ikke endres eller slettes fra appen – bare fra Firebase-konsollen.
+    match /oktober-2026-plasser/{person} {
+      allow read: if request.auth != null;
+      allow create: if person in ['endre', 'stine', 'lars']
+        && isPerson(person)
+        && !owns('endre') && !owns('stine') && !owns('lars')
+        && request.resource.data.keys().hasOnly(['uid', 'email'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email;
+      allow update, delete: if false;
+    }
 
     match /oktober-2026/{person} {
       // Alle som er logget inn kan følge med.
       allow read: if request.auth != null;
-      // Endre, Stine og Lars skriver bare sitt eget dokument: { days: { "2026-10-03": 8123 }, updatedAt }.
+      // Bare kontoen som eier plassen skriver dokumentet: { days: { "2026-10-03": 8123 }, updatedAt }.
       allow create, update: if person in ['endre', 'stine', 'lars']
-        && isPerson(person)
+        && owns(person)
         && request.resource.data.keys().hasOnly(['days', 'updatedAt'])
         && request.resource.data.days is map
         && request.resource.data.days.size() <= 31

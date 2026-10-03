@@ -18,6 +18,8 @@ export class StepsService {
   readonly saving = signal(false);
   readonly lastSynced = signal<Date | null>(null);
   readonly email = signal('');
+  /** Personen e-posten passer med, når plassen allerede eies av en annen konto. */
+  readonly spotTaken = signal<Person | null>(null);
   /** Byttes ut i tester. Firebase lastes som egen chunk, bare når det er konfigurert. */
   createBackend = async (config: FirebaseConfig): Promise<Backend> => new (await import('./firebase-backend')).FirebaseBackend(config);
   private backend?: Backend;
@@ -51,7 +53,7 @@ export class StepsService {
     let user: SignedIn | null = null;
     try { user = await backend.init(); }
     catch { this.error.set('Innloggingen feilet. Prøv igjen.'); }
-    if (user) this.start(user); else this.mode.set('login');
+    if (user) await this.start(user); else this.mode.set('login');
   }
 
   /** Uten Firebase: skrittene lagres bare i denne nettleseren. */
@@ -64,13 +66,21 @@ export class StepsService {
     this.listeningLocal = true;
   }
 
-  /** Innlogget: hvem du er ut fra e-posten, og live skritt fra Firestore. */
-  private start(user: SignedIn) {
-    const person = personFromEmail(user.email);
+  /**
+   * Innlogget: hvem du er ut fra e-posten, og live skritt fra Firestore. Passer e-posten med et navn,
+   * må kontoen også eie plassen – er den tatt av en annen konto, får du bare følge med.
+   */
+  private async start(user: SignedIn) {
+    let person = personFromEmail(user.email);
     this.email.set(user.email);
+    this.error.set('');
+    this.spotTaken.set(null);
+    if (person) {
+      try { if (!await this.backend!.claimSpot(person)) { this.spotTaken.set(person); person = null; } }
+      catch { this.error.set('Fikk ikke sjekket plassen din. Last siden på nytt.'); person = null; }
+    }
     this.name.set(person);
     this.mode.set(person ? 'shared' : 'readonly');
-    this.error.set('');
     this.watch();
   }
 
@@ -90,7 +100,7 @@ export class StepsService {
   /** Kalles rett fra klikket, så nettleseren ikke blokkerer innloggingsvinduet. */
   async login() {
     if (!this.backend) return;
-    try { const user = await this.backend.login(); if (user) this.start(user); }
+    try { const user = await this.backend.login(); if (user) await this.start(user); }
     catch (error) {
       this.error.set((error as { code?: string }).code === 'auth/popup-blocked'
         ? 'Nettleseren blokkerte innloggingsvinduet. Tillat popup for siden og prøv igjen.'
@@ -107,7 +117,7 @@ export class StepsService {
   disconnect() {
     this.unwatch?.(); this.unwatch = undefined;
     this.email.set(''); this.lastSynced.set(null);
-    this.name.set(null); this.entries.set([]);
+    this.name.set(null); this.entries.set([]); this.spotTaken.set(null);
   }
   get online() { return this.mode() === 'shared' || this.mode() === 'readonly'; }
 

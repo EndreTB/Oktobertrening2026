@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signOut, type Auth, type User } from 'firebase/auth';
-import { collection, doc, getDocs, getFirestore, onSnapshot, serverTimestamp, setDoc, type Firestore, type QuerySnapshot } from 'firebase/firestore';
-import { Backend, COLLECTION, FirebaseConfig, SignedIn, StoreError, docId, toEntries } from './backend';
+import { collection, doc, getDoc, getDocs, getFirestore, onSnapshot, serverTimestamp, setDoc, type Firestore, type QuerySnapshot } from 'firebase/firestore';
+import { Backend, COLLECTION, FirebaseConfig, SPOTS, SignedIn, StoreError, docId, toEntries } from './backend';
 import { Person, osloDate } from './challenge';
 
 /** Så lenge venter vi på at Firestore bekrefter en lagring før vi sier ifra. */
@@ -39,6 +39,22 @@ export class FirebaseBackend implements Backend {
   }
 
   logout() { return signOut(this.auth); }
+
+  /** Leser plassen, og oppretter den hvis ingen har den. Reglene avviser alle andre enn eieren. */
+  async claimSpot(person: Person) {
+    const user = this.auth.currentUser;
+    if (!user) throw new StoreError('unauthorized', 'Innloggingen har utløpt.');
+    const ref = doc(this.db, SPOTS, docId(person));
+    try {
+      const spot = await getDoc(ref);
+      if (spot.exists()) return spot.get('uid') === user.uid;
+      await setDoc(ref, { uid: user.uid, email: user.email });
+      return true;
+    } catch (error) {
+      if ((error as { code?: string }).code === 'permission-denied') return false;
+      throw storeError(error);
+    }
+  }
 
   async readAll() {
     try { return entries(await getDocs(collection(this.db, COLLECTION))); }
