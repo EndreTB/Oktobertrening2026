@@ -4,7 +4,13 @@ import {stats,elapsedDays,validEntry,osloDate,personFromEmail,Entry} from '../sr
 const row=(day:string,steps:number):Entry=>({name:'Endre',day,steps});
 test('hele måneden teller, også dager uten registrering',()=>{
  const s=stats([row('2026-10-01',20000)],'Endre','2026-10-04');
- assert.equal(s.average,5000);assert.equal(s.total,20000);assert.equal(s.remaining,28);assert.equal(s.needed,Math.ceil(290000/28));
+ assert.equal(s.average,Math.round(20000/3));assert.equal(s.total,20000);assert.equal(s.remaining,28);assert.equal(s.needed,Math.ceil(290000/28));
+});
+test('snittet tar bare med i dag når i dag er registrert',()=>{
+ assert.equal(stats([row('2026-10-01',9000)],'Endre','2026-10-04').average,3000);
+ assert.equal(stats([row('2026-10-01',9000),row('2026-10-04',3000)],'Endre','2026-10-04').average,3000);
+ assert.equal(stats([],'Endre','2026-10-01').average,0);
+ assert.equal(stats([row('2026-10-01',31000)],'Endre','2026-11-05').average,1000);
 });
 test('før start har man 31 dager igjen',()=>{const s=stats([],'Endre','2026-09-30');assert.equal(s.remaining,31);assert.equal(s.needed,10000);assert.equal(s.average,0);});
 test('registrert i dag betyr at det nye dagsmålet gjelder fra i morgen',()=>{const s=stats([row('2026-10-01',15000)],'Endre','2026-10-01');assert.equal(s.remaining,30);assert.equal(s.needed,9834);});

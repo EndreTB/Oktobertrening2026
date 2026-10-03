@@ -32,7 +32,9 @@ export function stats(entries: Entry[], name: Person, today: string) {
   const todayEntry = own.find(e => e.day === today);
   // Once today is logged, calculate the target for the remaining days after today.
   const remaining = Math.max(0, 31 - elapsed + (elapsed > 0 && elapsed < 32 && today <= '2026-10-31' && !todayEntry ? 1 : 0));
-  const average = elapsed ? Math.round(total / elapsed) : 0;
+  // I dag teller bare med i snittet når dagen er registrert.
+  const averageDays = elapsed - (today <= '2026-10-31' && elapsed && !todayEntry ? 1 : 0);
+  const average = averageDays ? Math.round(total / averageDays) : 0;
   const needed = remaining ? Math.ceil(Math.max(0, TARGET - total) / remaining) : 0;
   let streak = 0;
   let end = elapsed;
