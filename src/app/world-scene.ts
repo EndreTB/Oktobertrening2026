@@ -1,5 +1,6 @@
+import { TEAM_TARGET } from './participants';
 import * as THREE from 'three';
-import { JourneyWorld } from './worlds';
+import { LIGHT_CYCLE, LIGHT_GLINT, JourneyWorld } from './worlds';
 import { buildRealm, type RealmComposition } from './realm-environments';
 import { naturalTrail, sculptedTerrain } from './landscape-details';
 
@@ -35,8 +36,8 @@ export function disposeWorld(group: THREE.Object3D) {
 }
 export function createWorld(info: JourneyWorld, person: string, steps = 0): WorldScene {
   const group = new THREE.Group(), floaters: THREE.Object3D[] = [];
-  const lightEra = Math.max(0, Math.floor((steps - 930000) / 180000));
-  const lightGlints = Math.max(0, Math.floor((steps - 930000) / 50000));
+  const lightEra = Math.max(0, Math.floor((steps - TEAM_TARGET) / LIGHT_CYCLE));
+  const lightGlints = Math.max(0, Math.floor((steps - TEAM_TARGET) / LIGHT_GLINT));
   let seed = 46 + lightEra * 187;
   const random = () => { seed = seed * 16807 % 2147483647; return (seed - 1) / 2147483646; };
   const mountain = info.id === 'mountain';
@@ -138,7 +139,7 @@ export function createWorld(info: JourneyWorld, person: string, steps = 0): Worl
 
   // A small, readable hiker: boots, swinging limbs, jacket, backpack and bobble hat.
   const wanderer=new THREE.Group(), limbs: THREE.Group[]=[];
-  const jacket=material(person==='Stine'?'#e89aab':person==='Lars'?'#80c7e3':'#e9ac69');
+  const jacket=material(person==='Stine'?'#e89aab':person==='Lars'?'#80c7e3':person==='Cathrine'?'#bd9ce3':'#e9ac69');
   const boots=material('#243448'), skin=material('#f0d2b1'), hat=material('#f5e9b4');
   mesh(new THREE.CapsuleGeometry(.28,.44,4,10),jacket,[0,1.03,0],wanderer);
   mesh(new THREE.SphereGeometry(.29,14,10),skin,[0,1.65,0],wanderer);

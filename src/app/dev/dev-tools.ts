@@ -110,7 +110,7 @@ export function fillSteps(store: StepsService, total: (days: number) => number):
   let moved: string | null = null;
   let days = now;
   if (wanted > 0) {
-    days = Math.min(31, Math.max(now || 10, Math.ceil(wanted / 75_000)));
+    days = Math.min(31, Math.max(now || 10, Math.ceil(wanted / (25_000 * PEOPLE.length))));
     if (days > now) { moved = october(days); setToday(store, moved); }
   }
   const entries = spreadSteps(wanted, days);
@@ -121,7 +121,7 @@ export function fillSteps(store: StepsService, total: (days: number) => number):
   return moved;
 }
 
-/** Fordeler `total` på alle tre og de første `days` dagene, med litt variasjon mellom personer og dager. */
+/** Fordeler `total` på alle deltakerne og de første `days` dagene, med litt variasjon mellom personer og dager. */
 export function spreadSteps(total: number, days: number): Entry[] {
   if (total <= 0 || days <= 0) return [];
   const weights = PEOPLE.flatMap((name, p) => Array.from({ length: days }, (_, d) => ({

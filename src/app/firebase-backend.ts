@@ -45,9 +45,12 @@ export class FirebaseBackend implements Backend {
     const user = this.auth.currentUser;
     if (!user) throw new StoreError('unauthorized', 'Innloggingen har utløpt.');
     const ref = doc(this.db, SPOTS, docId(person));
+    let spot;
+    // Nektes vi å lese plassene, er reglene feil publisert – det er ikke det samme som at plassen er tatt.
+    try { spot = await getDoc(ref); }
+    catch (error) { throw storeError(error); }
+    if (spot.exists()) return spot.get('uid') === user.uid;
     try {
-      const spot = await getDoc(ref);
-      if (spot.exists()) return spot.get('uid') === user.uid;
       await setDoc(ref, { uid: user.uid, email: user.email });
       return true;
     } catch (error) {

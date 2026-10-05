@@ -49,6 +49,16 @@ test('Firebase: innlogging, hvem som er hvem, live deling, lesetilgang og feil',
     assert.deepEqual(fake.docs.get('endre'), {days: {'2026-10-11': 8000, '2026-10-12': 13000}});
     assert.deepEqual(stine.entries().map(e => [e.name, e.day, e.steps]), [['Endre','2026-10-11',8000],['Endre','2026-10-12',13000],['Stine','2026-10-12',9000]]);
 
+    const cathrine = service('Cathrine@gmail.com'); await cathrine.initialize();
+    assert.equal(cathrine.mode(), 'shared'); assert.equal(cathrine.name(), 'Cathrine');
+    assert.equal(await cathrine.save('2026-10-12', 11000), true);
+    assert.deepEqual(fake.docs.get('cathrine'), {days: {'2026-10-12': 11000}});
+    assert.equal(stine.entries().find(e => e.name === 'Cathrine')?.steps, 11000);
+    assert.equal(kari.entries().find(e => e.name === 'Cathrine')?.steps, 11000);
+    const cathrine2 = service('cathrine.hansen@gmail.com'); await cathrine2.initialize();
+    assert.equal(cathrine2.mode(), 'readonly');
+    assert.equal(await cathrine2.save('2026-10-12', 9999), false);
+
     fake.state.offline = true; assert.equal(await endre.save('2026-10-12', 14000), false);
     assert.equal(endre.entries().find(e => e.name === 'Endre' && e.day === '2026-10-12')?.steps, 13000); assert.match(endre.error(), /ikke lagret/);
     await endre.refresh(); assert.match(endre.error(), /kontakt med Firebase/);

@@ -15,6 +15,7 @@ function reefCameraPose(point:THREE.Vector3,aspect:number,overview:number) {
 export function buildCoralReef(group:THREE.Group,random:()=>number):RealmComposition {
   const reef=new THREE.Group();reef.name='coral-reef';group.add(reef);
   const palette=['#d17d66','#b77486','#dbad70','#589f90','#8883a6','#d99b7d'].map(color=>mat(color));
+  const veiled=(color:THREE.MeshStandardMaterial,bottom:number,top:number)=>mat(color.color.getStyle(),false,{bottom,top});
   const pale=new THREE.MeshStandardMaterial({color:'#f6c687',emissive:'#efa44d',emissiveIntensity:.65,roughness:.65});
   const atmosphere=buildReefAtmosphere(reef,random);
   const lightTime={value:0};
@@ -74,7 +75,7 @@ export function buildCoralReef(group:THREE.Group,random:()=>number):RealmComposi
     const plate=living(geometry(positions,indices),palette[shelf.color]);plate.userData['diameter']=shelf.radius*2;
     // Thick coral trunks continue down out of the frame, with rooted, layered side shelves.
     const c=shelf.center;
-    tube([c.clone().add(v(index%2?3:-3,-220,-4)),c.clone().add(v(-2,-24,-1)),c.clone().add(v(0,-2,0))],4.1,palette[shelf.color],.62);
+    tube([c.clone().add(v(index%2?3:-3,-220,-4)),c.clone().add(v(-2,-24,-1)),c.clone().add(v(0,-2,0))],4.1,veiled(palette[shelf.color],-95,-35),.62);
     for(let j=0;j<3;j++) {
       const disk=add(new THREE.SphereGeometry(1,32,16),palette[shelf.color],c.clone().add(v((j%2?1:-1)*3,-7-j*7,-3)));
       disk.scale.set(5.5-j*.65,.55,4-j*.4);
@@ -142,10 +143,10 @@ export function buildCoralReef(group:THREE.Group,random:()=>number):RealmComposi
   for(let i=0;i<15;i++) {
     const cluster=[[-45,-57],[36,-78],[-7,-113],[64,-66],[3,-76]][Math.floor(i/3)];
     const x=cluster[0]+(i%3-1)*6,z=cluster[1]-random()*10,y=-27+random()*19;
-    const sponge=add(cup,palette[(Math.floor(i/3)+1)%6],v(x,y,z));sponge.scale.set(1.1+random()*.65,1.25+random()*1.7,1.1+random()*.6);sponge.rotation.z=(random()-.5)*.2;
+    const sponge=add(cup,veiled(palette[(Math.floor(i/3)+1)%6],y-1,y+14),v(x,y,z));sponge.scale.set(1.1+random()*.65,1.25+random()*1.7,1.1+random()*.6);sponge.rotation.z=(random()-.5)*.2;
   }
   for(const [x,y,z,color] of [[-49,-7,-30,0],[44,2,-33,4],[-13,12,-65,2]]) {
-    const base=v(x,y,z),m=palette[color];
+    const base=v(x,y,z),m=veiled(palette[color],y-2,y+8);
     for(let j=0;j<13;j++) {
       const a=-1.35+j/12*2.7;
       const curl=Math.sin(j*1.8)*1.5;
@@ -157,7 +158,7 @@ export function buildCoralReef(group:THREE.Group,random:()=>number):RealmComposi
     }
   }
   for(let i=0;i<8;i++) {
-    const root=v(-60+i*17,-37,-78),m=palette[i%6];
+    const root=v(-60+i*17,-37,-78),m=veiled(palette[i%6],-39,-15);
     const center=root.clone().add(v(0,28,0));tube([root,root.clone().add(v(2,15,0)),center],3,m);
     for(let j=0;j<4;j++) {
       const end=center.clone().add(v((j-1.5)*7,18+random()*12,0));
@@ -166,7 +167,7 @@ export function buildCoralReef(group:THREE.Group,random:()=>number):RealmComposi
     }
   }
   // A deep, irregular reef wall and distant arch anchor the colonies in a much larger habitat.
-  const distant=mat('#20575a'),middle=mat('#34736d');
+  const distant=mat('#20575a',false,{bottom:-100,top:-30}),middle=mat('#34736d',false,{bottom:-100,top:-30});
   for(let i=0;i<17;i++) {
     const rock=add(new THREE.IcosahedronGeometry(1,2),i%3?distant:middle,v(-108+i*14,-35+random()*17,-118-random()*55));
     rock.scale.set(9+random()*9,22+random()*34,10+random()*15);rock.rotation.set(random()*.5,random()*3,random()*.4);

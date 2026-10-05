@@ -2,12 +2,12 @@ import { afterEveryRender, Component, computed, effect, HostListener, inject, si
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { StepsService } from './steps.service';
-import { CHAPTERS, PEOPLE, TARGET, TEAM_TARGET, Person, elapsedDays, osloDate, stats, validEntry } from './challenge';
+import { CHAPTERS, PEOPLE, TARGET, TEAM_TARGET, Person, dailySteps, elapsedDays, osloDate, stats, validEntry } from './challenge';
 import { JourneyFrame, LandscapeComponent } from './landscape.component';
 import { DevbarComponent } from './dev/devbar.component';
 import { isDevHost } from './steps.service';
 
-import { JourneyWorld, WORLDS, worldAt, worldProgress } from './worlds';
+import { LIGHT_CYCLE, LIGHT_GLINT, JourneyWorld, WORLDS, worldAt, worldProgress } from './worlds';
 import { Seen, readSeen, sinceSeen, snapshot, writeSeen } from './away';
 
 interface Playback { id: number; from: number; to: number; name: string; preview: boolean; away?: string; }
@@ -16,12 +16,15 @@ interface Playback { id: number; from: number; to: number; name: string; preview
 export class AppComponent {
   readonly store = inject(StepsService);
   readonly people = PEOPLE;
+  readonly peopleLabel = new Intl.ListFormat('nb-NO', { type: 'conjunction' }).format(PEOPLE);
+  readonly teamTarget = TEAM_TARGET;
+  readonly daily = computed(()=>dailySteps(this.store.entries(),this.effectiveToday()));
   readonly chapters = CHAPTERS;
   readonly worlds = WORLDS;
   readonly currentWorld = computed(()=>worldAt(this.teamTotal()));
   readonly currentWorldProgress = computed(()=>worldProgress(this.teamTotal())*100);
   readonly beyondGoal = computed(()=>Math.max(0,this.teamTotal()-TEAM_TARGET));
-  readonly nextLight = computed(()=>50000-this.beyondGoal()%50000);
+  readonly nextLight = computed(()=>LIGHT_GLINT-this.beyondGoal()%LIGHT_GLINT);
   readonly playback = signal<Playback|null>(null);
   readonly playbackFrame = signal<JourneyFrame|null>(null);
   private playbackSequence = 0;
@@ -114,7 +117,7 @@ export class AppComponent {
   isOpen(world: JourneyWorld) { return this.teamTotal()>=world.start; }
   previewWorld(world: JourneyWorld) {
     if(!this.isOpen(world))return;
-    const length=world.id==='light'?180000:world.end-world.start;
+    const length=world.id==='light'?LIGHT_CYCLE:world.end-world.start;
     const fullTour=world.id==='forest'||world.id==='body';
     this.openPlayback({id:0,from:fullTour?world.start:world.start+length*.15,to:fullTour?world.end-1:world.start+length*.48,name:this.activeName(),preview:true});
   }

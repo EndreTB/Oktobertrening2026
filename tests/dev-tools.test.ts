@@ -1,7 +1,7 @@
 import '@angular/compiler';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {osloDate, overrideToday} from '../src/app/challenge';
+import {PEOPLE, osloDate, overrideToday} from '../src/app/challenge';
 
 test('devbaren: datasett, falsk dato og skriveregel som i firestore.rules', async t => {
   const saved = new Map<string,string>();
@@ -10,7 +10,7 @@ test('devbaren: datasett, falsk dato og skriveregel som i firestore.rules', asyn
   const {spreadSteps, DevBackend, devState} = await import('../src/app/dev/dev-tools');
 
   const entries = spreadSteps(465_000, 15);
-  assert.equal(entries.length, 45);
+  assert.equal(entries.length, 15 * PEOPLE.length);
   assert.ok(Math.abs(entries.reduce((s, e) => s + e.steps, 0) - 465_000) < 50);
   assert.ok(entries.every(e => e.day <= '2026-10-15' && e.steps <= 100_000));
 

@@ -1,9 +1,8 @@
 import { WORLDS } from './worlds';
-export const PEOPLE = ['Endre', 'Stine', 'Lars'] as const;
-export type Person = typeof PEOPLE[number];
+import { PEOPLE, Person, TARGET } from './participants';
+export { PEOPLE, TARGET, TEAM_TARGET } from './participants';
+export type { Person } from './participants';
 export interface Entry { name: Person; day: string; steps: number; }
-export const TARGET = 310_000;
-export const TEAM_TARGET = TARGET * 3;
 export const METERS_PER_STEP = .75;
 // Hvem en innlogget bruker er, ut fra navnet foran @ i e-posten. Første treff i PEOPLE vinner.
 export function personFromEmail(email: string | null | undefined): Person | null {
@@ -24,6 +23,16 @@ export function elapsedDays(today: string): number {
 }
 export function validEntry(day: string, steps: number, today: string): boolean {
   return /^2026-10-(0[1-9]|[12][0-9]|3[01])$/.test(day) && day <= today && Number.isInteger(steps) && steps >= 0 && steps <= 100000;
+}
+/** Nyeste dag først. Null betyr manglende registrering; 0 er et registrert tall. */
+export function dailySteps(entries: Entry[], today: string) {
+  const valid = entries.filter(e => PEOPLE.includes(e.name) && validEntry(e.day, e.steps, today));
+  return Array.from({ length: elapsedDays(today) }, (_, index) => {
+    const day = `2026-10-${String(elapsedDays(today) - index).padStart(2, '0')}`;
+    const people = PEOPLE.map(name => ({ name, steps: valid.find(e => e.name === name && e.day === day)?.steps ?? null }));
+    const registered = people.filter(p => p.steps !== null);
+    return { day, people, total: registered.length ? registered.reduce((sum, p) => sum + p.steps!, 0) : null };
+  });
 }
 export function stats(entries: Entry[], name: Person, today: string) {
   const own = entries.filter(e => e.name === name && validEntry(e.day, e.steps, today));

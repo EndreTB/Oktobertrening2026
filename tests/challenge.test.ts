@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {stats,elapsedDays,validEntry,osloDate,personFromEmail,Entry} from '../src/app/challenge';
+import {stats,elapsedDays,validEntry,osloDate,personFromEmail,Entry,PEOPLE,TARGET,TEAM_TARGET,CHAPTERS,dailySteps} from '../src/app/challenge';
 const row=(day:string,steps:number):Entry=>({name:'Endre',day,steps});
 test('hele måneden teller, også dager uten registrering',()=>{
  const s=stats([row('2026-10-01',20000)],'Endre','2026-10-04');
@@ -43,4 +43,32 @@ test('e-posten avgjør hvem som er hvem',()=>{
  assert.equal(personFromEmail('kari@firma.no'),null);
  assert.equal(personFromEmail('post@endre.no'),null); // bare delen foran @ teller
  assert.equal(personFromEmail(''),null);
+});
+
+test('fire deltakere har samme personlige innsats til hver portal',()=>{
+ assert.equal(PEOPLE.length,4);
+ assert.ok(PEOPLE.includes('Cathrine'));
+ assert.equal(TARGET,310000);
+ assert.equal(TEAM_TARGET,1240000);
+ assert.deepEqual(CHAPTERS.map(c=>c.start/PEOPLE.length),[0,60000,120000,180000,240000,310000]);
+ assert.deepEqual(CHAPTERS.map(c=>c.km),[0,180,360,540,720,930]);
+ assert.equal(personFromEmail('Cathrine.Hansen@gmail.com'),'Cathrine');
+ const s=stats([{name:'Cathrine',day:'2026-10-01',steps:10000}],'Cathrine','2026-10-01');
+ assert.equal(s.needed,10000);
+ assert.equal(s.km,7.5);
+});
+test('daglig oversikt skiller 0 fra manglende registrering og viser alle deltakere',()=>{
+ const rows=dailySteps([
+  row('2026-10-01',12000),{name:'Cathrine',day:'2026-10-01',steps:9000},
+  {name:'Stine',day:'2026-10-02',steps:0},row('2026-10-04',15000),row('2026-10-03',-1),
+ ],'2026-10-03');
+ assert.deepEqual(rows.map(r=>r.day),['2026-10-03','2026-10-02','2026-10-01']);
+ assert.equal(rows[0].total,null);
+ assert.equal(rows[1].total,0);
+ assert.deepEqual(rows[1].people.map(p=>p.steps),[null,0,null,null]);
+ assert.equal(rows[2].total,21000);
+ assert.deepEqual(rows[2].people.map(p=>p.name),[...PEOPLE]);
+ assert.deepEqual(rows[2].people.map(p=>p.steps),[12000,null,null,9000]);
+ assert.equal(dailySteps([],'2026-09-30').length,0);
+ assert.equal(dailySteps([],'2026-11-03').length,31);
 });

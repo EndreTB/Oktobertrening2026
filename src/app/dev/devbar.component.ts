@@ -1,3 +1,5 @@
+import { PEOPLE, TEAM_TARGET } from '../participants';
+import { LIGHT_CYCLE } from '../worlds';
 import { Component, DestroyRef, ElementRef, ViewEncapsulation, afterNextRender, computed, inject, output, signal } from '@angular/core';
 import { StepsService } from '../steps.service';
 import { osloDate } from '../challenge';
@@ -82,9 +84,7 @@ export class DevbarComponent {
 
   readonly roles: { id: DevRole; label: string; hint: string }[] = [
     { id: 'login', label: 'Utlogget', hint: 'Logg inn-knappen logger inn som Endre' },
-    { id: 'Endre', label: 'Endre', hint: 'endre@dev.localhost' },
-    { id: 'Stine', label: 'Stine', hint: 'stine@dev.localhost' },
-    { id: 'Lars', label: 'Lars', hint: 'lars@dev.localhost' },
+    ...PEOPLE.map(id => ({ id, label: id, hint: `${id.toLowerCase()}@dev.localhost` })),
     { id: 'reader', label: 'Leser', hint: 'Innlogget, men ikke med i utfordringen' },
     { id: 'local', label: 'Lokal', hint: 'Uten Firebase-oppsett, lagres i nettleseren' },
     { id: 'loading', label: 'Laster', hint: 'Mens Firebase starter' },
@@ -100,14 +100,14 @@ export class DevbarComponent {
   ];
   readonly presets: { label: string; hint: string; total: (days: number) => number }[] = [
     { label: 'Tom', hint: 'Ingen registreringer', total: () => 0 },
-    { label: 'Henger etter', hint: '~6 300 per person per dag', total: days => days * 19_000 },
-    { label: 'I rute', hint: '~10 500 per person per dag', total: days => days * 31_500 },
-    { label: 'Halvveis', hint: '465 000 sammen', total: () => 465_000 },
-    { label: 'Nesten i mål', hint: '925 000 – én registrering til krysser 930 000', total: () => 925_000 },
-    { label: 'I mål', hint: '935 000 sammen', total: () => 935_000 },
-    { label: 'Bortenfor', hint: '1 240 000 sammen', total: () => 1_240_000 },
+    { label: 'Henger etter', hint: '~6 300 per person per dag', total: days => days * 6_300 * PEOPLE.length },
+    { label: 'I rute', hint: '~10 500 per person per dag', total: days => days * 10_500 * PEOPLE.length },
+    { label: 'Halvveis', hint: 'Halve fellesmålet', total: () => TEAM_TARGET / 2 },
+    { label: 'Nesten i mål', hint: '5 000 skritt fra fellesmålet', total: () => TEAM_TARGET - 5_000 },
+    { label: 'I mål', hint: '5 000 skritt over fellesmålet', total: () => TEAM_TARGET + 5_000 },
+    { label: 'Bortenfor', hint: 'En ny lyssti etter målet', total: () => TEAM_TARGET + LIGHT_CYCLE + 10_000 },
   ];
-  readonly worlds = WORLDS.map(w => ({ ...w, total: () => Math.round(w.start + (w.id === 'light' ? 60_000 : (w.end - w.start) * .4)) }));
+  readonly worlds = WORLDS.map(w => ({ ...w, total: () => Math.round(w.start + (w.id === 'light' ? LIGHT_CYCLE / 3 : (w.end - w.start) * .4)) }));
   readonly failures: { id: DevFailure; label: string; hint: string }[] = [
     { id: 'none', label: 'Alt virker', hint: 'Ingen feil' },
     { id: 'offline', label: 'Nettverksfeil', hint: 'Firestore svarer ikke' },

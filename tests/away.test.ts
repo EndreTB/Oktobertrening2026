@@ -20,5 +20,15 @@ test('ødelagt eller gammel lagring gir ingen avspilling',()=>{
   storage.setItem(SEEN_KEY, '{ikke json');
   assert.equal(readSeen(storage), null);
   storage.setItem(SEEN_KEY, JSON.stringify({total: 5000}));
-  assert.deepEqual(readSeen(storage), {total: 5000, people: {Endre: 0, Stine: 0, Lars: 0}});
+  assert.deepEqual(readSeen(storage), {total: 5000, people: {Endre: 0, Stine: 0, Lars: 0, Cathrine: 0}});
+});
+
+test('lagret fremdrift fra tre deltakere bevares når Cathrine kommer til',()=>{
+  const storage=memory();
+  storage.setItem(SEEN_KEY,JSON.stringify({total:10000,people:{Endre:10000,Stine:0,Lars:0}}));
+  const seen=readSeen(storage)!;
+  assert.equal(seen.total,10000);
+  assert.equal(seen.people.Cathrine,0);
+  const now=snapshot([{name:'Endre',day:'2026-10-01',steps:10000},{name:'Cathrine',day:'2026-10-01',steps:8000}]);
+  assert.deepEqual(sinceSeen(seen,now),[{name:'Cathrine',steps:8000}]);
 });

@@ -1,6 +1,7 @@
+import { TEAM_TARGET } from './participants';
 import { AfterViewInit, Component, ElementRef, EventEmitter, Input, NgZone, OnDestroy, Output, ViewChild, signal } from '@angular/core';
 import type * as THREE from 'three';
-import { JourneyWorld, journeyLegs, worldAt, worldProgress } from './worlds';
+import { LIGHT_CYCLE, LIGHT_GLINT, JourneyWorld, journeyLegs, worldAt, worldProgress } from './worlds';
 import type { WorldScene } from './world-scene';
 
 export interface JourneyFrame { world: JourneyWorld; steps: number; moving: boolean; finished: boolean; }
@@ -86,7 +87,7 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
     const observer=new IntersectionObserver(entries=>visible=entries[0].isIntersecting);observer.observe(host);this.cleanups.push(()=>observer.disconnect());
     const pointer=(event:PointerEvent)=>{const r=host.getBoundingClientRect();mx=(event.clientX-r.left)/r.width-.5;my=(event.clientY-r.top)/r.height-.5;};
     host.addEventListener('pointermove',pointer);this.cleanups.push(()=>host.removeEventListener('pointermove',pointer));
-    const sceneKey=(info:JourneyWorld,steps:number)=>`${info.id}:${this.person}:${info.id==='light'?Math.floor((steps-930000)/180000)+':'+Math.floor((steps-930000)/50000):''}`;
+    const sceneKey=(info:JourneyWorld,steps:number)=>`${info.id}:${this.person}:${info.id==='light'?Math.floor((steps-TEAM_TARGET)/LIGHT_CYCLE)+':'+Math.floor((steps-TEAM_TARGET)/LIGHT_GLINT):''}`;
     const build=(info:JourneyWorld,flash:boolean,steps:number)=>{
       if(this.built){scene.remove(this.built.group);disposeWorld(this.built.group);}
       this.built=createWorld(info,this.person,steps);scene.add(this.built.group);shownId=sceneKey(info,steps);
@@ -104,7 +105,7 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
       const fillColors={mountain:'#b8d7d1',forest:'#96d7ba',body:'#50a7a4',micro:'#91b5ed',cosmos:'#8ccedc',light:'#b5bde4'};
       fill.color.set(fillColors[info.id]);
       scene.fog=new THREE.FogExp2(info.background,info.id==='body'?.011:info.id==='forest'?.01:.007);
-      renderer.setClearColor(info.background,this.cinematic?1:0);
+      renderer.setClearColor(info.background,this.cinematic&&info.id!=='body'?1:0);
       ambient.groundColor.set(info.background);
       this.zone.run(()=>{this.currentWorld.set(info);this.flashing.set(flash&&!reduced.matches);this.exploration.set(null);});flashAge=0;
     };

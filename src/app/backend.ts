@@ -35,7 +35,7 @@ export interface Backend {
    */
   claimSpot(person: Person): Promise<boolean>;
   readAll(): Promise<Entry[]>;
-  /** Live oppdateringer av alle tre dokumentene. Returnerer en funksjon som stopper lyttingen. */
+  /** Live oppdateringer av alle deltakernes dokumenter. Returnerer en funksjon som stopper lyttingen. */
   watch(next: (entries: Entry[]) => void, fail: (error: StoreError) => void): () => void;
   saveDay(person: Person, day: string, steps: number): Promise<void>;
 }

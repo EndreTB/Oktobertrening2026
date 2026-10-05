@@ -16,9 +16,9 @@ service cloud.firestore {
     // deretter er den låst. Plassene kan ikke endres eller slettes fra appen – bare fra Firebase-konsollen.
     match /oktober-2026-plasser/{person} {
       allow read: if request.auth != null;
-      allow create: if person in ['endre', 'stine', 'lars']
+      allow create: if person in ['endre', 'stine', 'lars', 'cathrine']
         && isPerson(person)
-        && !owns('endre') && !owns('stine') && !owns('lars')
+        && !owns('endre') && !owns('stine') && !owns('lars') && !owns('cathrine')
         && request.resource.data.keys().hasOnly(['uid', 'email'])
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.email == request.auth.token.email;
@@ -29,7 +29,7 @@ service cloud.firestore {
       // Alle som er logget inn kan følge med.
       allow read: if request.auth != null;
       // Bare kontoen som eier plassen skriver dokumentet: { days: { "2026-10-03": 8123 }, updatedAt }.
-      allow create, update: if person in ['endre', 'stine', 'lars']
+      allow create, update: if person in ['endre', 'stine', 'lars', 'cathrine']
         && owns(person)
         && request.resource.data.keys().hasOnly(['days', 'updatedAt'])
         && request.resource.data.days is map
