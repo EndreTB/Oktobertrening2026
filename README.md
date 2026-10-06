@@ -17,7 +17,7 @@ npm start
 
 ### Devbar på localhost
 
-På `localhost` ligger en devbar nederst for å hoppe mellom tilstander uten å logge inn: rolle (utlogget, Endre/Stine/Lars/Cathrine, leser, lokal, laster, feil), falsk dato, ferdige skrittdatasett (fra tom til bortenfor 1 240 000, eller midt i hver verden) og simulerte feil (nettverk, nektet, utløpt innlogging). Første klikk bytter fra Firebase til en database i minnet, og valget huskes til du trykker **Av · ekte Firebase**. Ingenting skrives til Firestore. Koden ligger i `src/app/dev/` og lastes aldri utenfor localhost.
+På `localhost` ligger en devbar nederst for å hoppe mellom tilstander uten å logge inn: rolle (utlogget, Endre/Stine/Lars/Cathrine, leser, lokal, laster, feil), falsk dato, ferdige skrittdatasett (fra tom til bortenfor 1 240 000, eller midt i hver verden) simulerte feil (nettverk, nektet, utløpt innlogging) og fire eksempelbilder under **Minner** (bare i minnet, borte ved omlasting). Første klikk bytter fra Firebase til en database i minnet, og valget huskes til du trykker **Av · ekte Firebase**. Ingenting skrives til Firestore. Koden ligger i `src/app/dev/` og lastes aldri utenfor localhost.
 
 ## Innlogging og lagring i Firebase
 
@@ -27,7 +27,8 @@ Prosjektet er `kchallange-5e855` («10kchallange», Spark-planen holder godt).
 - **Hvem er hvem:** Hver person har én plass i `oktober-2026-plasser/{endre|stine|lars|cathrine}` med `{ uid, email }`. Første verifiserte Google-konto der delen foran `@` inneholder navnet, tar plassen; deretter er den låst. Andre kontoer med samme navn i e-posten får bare lesetilgang. Skal en plass flyttes, slett dokumentet i Firebase-konsollen – da tar neste innlogging den.
 - **Lagring:** Firestore, ett dokument per person: `oktober-2026/endre` (og `stine`, `lars`, `cathrine`) med `{ days: { "2026-10-03": 8123, … }, updatedAt }`. Lagring slår sammen bare den ene dagen inn i `days`, så ingen enheter overskriver hverandre. Se `src/app/firebase-backend.ts`.
 - **Live:** Alle lytter på samlingen, så nye skritt dukker opp hos de andre med en gang.
-- **Regler:** `firestore.rules` krever innlogging for å lese, og at du bare skriver dokumentet til plassen kontoen din eier. Plasser kan opprettes én gang, aldri endres eller slettes fra appen.
+- **Minner (bilder):** Deltakerne kan dele bilder fra turene med dato og en kort tekst. Bildet krympes i nettleseren til JPEG (maks 1600 px, under 900 KB) og lagres som bytes i Firestore, fordi Cloud Storage krever Blaze-planen. Hvert minne er to dokumenter med samme id: `oktober-2026-minner/{id}` med miniatyr, dato og tekst, og `oktober-2026-bilder/{id}` med bildet i full størrelse, som hentes først når noen åpner det. Begge skrives i samme batch. Se `src/app/memories.ts` og `src/app/photo.ts`.
+- **Regler:** `firestore.rules` krever innlogging for å lese, og at du bare skriver dokumentet til plassen kontoen din eier. Plasser kan opprettes én gang, aldri endres eller slettes fra appen. Minnene kan bare leses av de fire deltakerne, og hver kan bare dele og slette sine egne.
 
 ### Oppsett i Firebase-konsollen
 
@@ -56,7 +57,7 @@ Prosjektet er `kchallange-5e855` («10kchallange», Spark-planen holder godt).
 
 ## Tilgang og personvern
 
-Innloggingen er Google sin via Firebase. Appen ser bare navn og e-post på den innloggede kontoen. Alle som logger inn kan lese skrittene; bare Endre, Stine, Lars og Cathrine kan skrive, og bare på seg selv (håndhevet i `firestore.rules`). Ingen analyseverktøy eller GPS-sporing. Skriftene hentes fra Google Fonts, med lokale systemskrifter som reserve.
+Innloggingen er Google sin via Firebase. Appen ser bare navn og e-post på den innloggede kontoen. Alle som logger inn kan lese skrittene; bare Endre, Stine, Lars og Cathrine kan skrive, og bare på seg selv (håndhevet i `firestore.rules`). Bilder er frivillige og synes bare for de fire deltakerne – ikke for andre som logger inn. Bildet tegnes på nytt før deling, så posisjon og annen EXIF-info blir ikke med. Den som delte et bilde kan slette det for alle. Ingen analyseverktøy eller GPS-sporing. Skriftene hentes fra Google Fonts, med lokale systemskrifter som reserve.
 
 ## Kontroller
 
@@ -65,7 +66,7 @@ npm test
 npm run build
 ```
 
-Testene dekker månedsgrensene, tidssone, nullverdier, dagsnitt, gjenstående dagsmål, distanse, strek, e-post → person, tolking av Firestore-dokumenter, og et simulert Firestore (`tests/fake-backend.ts`): live deling mellom brukere, lesetilgang, kun eget dokument, nettverksfeil, utlogging og lokal modus. Testene går ikke mot ekte Firebase.
+Testene dekker månedsgrensene, tidssone, nullverdier, dagsnitt, gjenstående dagsmål, distanse, strek, e-post → person, tolking av Firestore-dokumenter, og et simulert Firestore (`tests/fake-backend.ts`): live deling mellom brukere, lesetilgang, kun eget dokument, nettverksfeil, utlogging og lokal modus – og for minner: tolking av dokumentene, grenser for dato, tekst og bildestørrelse, deling live, at lesere ikke ser bildene, nytt forsøk uten duplikat og at bare eieren kan slette. Testene går ikke mot ekte Firebase.
 
 `npm run build:pages` bygger med relativ base-adresse. Siden bruker seksjonsankere fremfor klientruter og trenger ingen SPA-404-omskriving.
 

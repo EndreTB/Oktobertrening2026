@@ -158,7 +158,7 @@ export function createWorld(info: JourneyWorld, person: string, steps = 0): Worl
     const arm=new THREE.Group();arm.position.set(side*.36,1.34,0);mesh(new THREE.CapsuleGeometry(.08,.32,3,7),jacket,[0,-.24,0],arm);mesh(new THREE.SphereGeometry(.085,8,6),skin,[0,-.48,0],arm);wanderer.add(arm);limbs.push(arm);
   }
   for(const x of [-.1,.1])mesh(new THREE.SphereGeometry(.035,6,6),boots,[x,1.66,.27],wanderer);
-  wanderer.scale.setScalar(info.id==='body'?.82:1.15);group.add(wanderer);
+  wanderer.scale.setScalar(info.id==='body'?.82:info.id==='micro'?.65:1.15);group.add(wanderer);
   wanderer.traverse(object=>{if(object instanceof THREE.Mesh)object.castShadow=true;});
   const halo=mesh(new THREE.TorusGeometry(.55,.025,5,30),new THREE.MeshBasicMaterial({color:info.color}),[0,.03,0],wanderer);halo.rotation.x=-Math.PI/2;
   const portal=new THREE.Group();portal.position.copy(route.getPoint(1));portal.position.y+=1.7;

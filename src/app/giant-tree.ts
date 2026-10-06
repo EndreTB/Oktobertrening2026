@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { RealmComposition } from './realm-environments';
 import { naturalTrail } from './landscape-details';
+import { createForestLife } from './forest-life';
 
 const v = (x:number,y:number,z:number) => new THREE.Vector3(x,y,z);
 const material = (color:string,glow=0) => new THREE.MeshStandardMaterial({color,roughness:.93,emissive:color,emissiveIntensity:glow});
@@ -8,14 +9,21 @@ const treeCenter=v(0,0,-6.8);
 const outward=(point:THREE.Vector3)=>v(point.x,0,point.z-treeCenter.z).normalize();
 
 /** Orbit on the walker's side of the trunk. Blend distance, never cut across the trunk. */
-function treeCameraPose(point:THREE.Vector3,aspect:number,overview:number) {
+function treeCameraPose(point:THREE.Vector3,aspect:number,overview:number,pointer={x:0,y:0}) {
   const radial=outward(point),side=v(-radial.z,0,radial.x);
   const zoom=aspect<.85?1.15:1;
   const position=point.clone().addScaledVector(radial,16*zoom).addScaledVector(side,12*zoom).add(v(0,8*zoom,0));
   const target=point.clone().add(v(0,1.4,0));
   const framing=Math.max(1,.95/aspect);
   const wide=treeCenter.clone().addScaledVector(radial,70*framing).addScaledVector(side,45*framing).add(v(0,30*framing,0));
-  return {position:position.lerp(wide,overview),target:target.lerp(treeCenter.clone().add(v(0,8,0)),overview)};
+  position.lerp(wide,overview);
+  target.lerp(treeCenter.clone().add(v(0,8,0)),overview);
+  // A small orbit relative to the current route position keeps us outside the trunk.
+  const offset=new THREE.Spherical().setFromVector3(position.clone().sub(target));
+  offset.theta+=THREE.MathUtils.clamp(pointer.x,-.5,.5)*.35;
+  offset.phi+=THREE.MathUtils.clamp(pointer.y,-.5,.5)*.16;
+  position.copy(target).add(new THREE.Vector3().setFromSpherical(offset));
+  return {position,target};
 }
 
 function mesh(parent:THREE.Object3D,geometry:THREE.BufferGeometry,mat:THREE.Material,position=new THREE.Vector3()) {
@@ -45,7 +53,7 @@ function surface(positions:number[],colors:number[],indices:number[]) {
 /** A slice of an ancient tree: its roots and crown are far outside every camera view. */
 export function buildGiantTree(group:THREE.Group,floaters:THREE.Object3D[],random:()=>number):RealmComposition {
   const bark=material('#70503a'),darkBark=material('#493b30'),moss=material('#4e7750');
-  const foliage=new THREE.MeshStandardMaterial({color:'#548658',side:THREE.DoubleSide,roughness:.9});
+  const life=createForestLife(group,random,moss);
   const mint=material('#9ce6bc',.35),amber=material('#f9cf8b',.65);
   const vertexMaterial=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.96});
 
@@ -138,12 +146,11 @@ export function buildGiantTree(group:THREE.Group,floaters:THREE.Object3D[],rando
       return v(Math.cos(angle)*6.7,y,-6.8+Math.sin(angle)*6.7);
     }),.055,i%2?moss:darkBark);
   }
-  const leafShape=new THREE.Shape();
-  leafShape.moveTo(0,0);leafShape.bezierCurveTo(1.1,.8,1,2.3,0,3.4);leafShape.bezierCurveTo(-1,2.3,-1.1,.8,0,0);
-  const leafGeometry=new THREE.ShapeGeometry(leafShape,12);
-  function leaf(p:THREE.Vector3,size:number,angle:number) {
-    const blade=mesh(group,leafGeometry,foliage,p);blade.rotation.set(-1.05,.18,angle);blade.scale.setScalar(size);
-    const vein=mesh(blade,new THREE.CylinderGeometry(.012,.026,2.9,5),moss,v(0,1.55,.02));vein.castShadow=false;
+  // Ivy growing against the bark puts moving leaves in the close view at every turn.
+  for(let i=0;i<24;i++) {
+    const angle=i*2.4,radial=v(Math.cos(angle),0,Math.sin(angle));
+    const base=treeCenter.clone().addScaledVector(radial,6.75).add(v(0,-5+(i%8)*4.5,0));
+    life.sprig(base,.62+random()*.18,v(radial.x*.22,1,radial.z*.22),-angle);
   }
   for(const t of [0,1]) {
     const p=path.getPoint(t),direction=path.getTangent(t).multiplyScalar(t===0?-1:1);
@@ -151,7 +158,7 @@ export function buildGiantTree(group:THREE.Group,floaters:THREE.Object3D[],rando
       const start=p.clone().addScaledVector(direction,1.8).add(v(0,-.5,0));
       const end=p.clone().addScaledVector(direction,3.8).add(v(0,-.1,side*1.4));
       strand(group,[start,start.clone().addScaledVector(direction,.8).add(v(0,.1,side*.8)),end],.16,bark);
-      leaf(end,.65,t===0?-.8:.8);
+      life.sprig(end,.75,direction.clone().add(v(0,-.8,side*.6)),side*.4);
     }
   }
   for(let i=0;i<34;i++) {
@@ -160,8 +167,8 @@ export function buildGiantTree(group:THREE.Group,floaters:THREE.Object3D[],rando
     const away=radial.clone().multiplyScalar(-.5).add(v(radial.z,0,-radial.x));
     const plantSide=side.clone().multiplyScalar(side.dot(away)<0?-1:1);
     // Fine hanging moss gives the branch an organic silhouette without blocking the trail.
-    strand(group,[edge,edge.clone().add(v(.15,-.7,.08)),edge.clone().add(v(-.12,-1.3-random()*1.6,.1))],.035,moss);
-    if(i%3===0)leaf(p.clone().addScaledVector(plantSide,r*.9).add(v(0,-.65,0)),.4+random()*.3,-.8+random()*1.6);
+    life.hangingMoss(edge,1.3+random()*1.6);
+    if(i%2===0)life.sprig(p.clone().addScaledVector(plantSide,r*.94).add(v(0,-.85,0)),.48+random()*.18,plantSide.clone().add(v(0,-1.7,0)),random()*.8);
     if(i%4===0) {
       const base=p.clone().addScaledVector(plantSide,r*.82).add(v(0,-.2,0));
       mesh(group,new THREE.CylinderGeometry(.045,.085,.35,7),bark,base.clone().add(v(0,.12,0)));
@@ -175,7 +182,8 @@ export function buildGiantTree(group:THREE.Group,floaters:THREE.Object3D[],rando
   }
   for(const [x,y,z,s,a] of [[-20,24,-11,2.4,-.8],[-12,29,-13,3,.8],[19,30,-14,3.1,-.7],[28,28,-9,2.4,.9],[-29,-9,-8,2.6,-.5],[17,-13,-13,3,.5]]) {
     strand(group,[v(Math.sign(x)*4,y-3,-8),v(x*.7,y-1,z-1),v(x,y,z)],.22,darkBark);
-    leaf(v(x,y,z),s,a);
+    life.sprig(v(x,y,z),s,v(Math.sign(x),.25,-.4),a);
+    life.sprig(v(x*.7,y-1,z-1),s*.65,v(Math.sign(x),-.7,.4),-a);
   }
   // Background trunks vanish into the green haze; there is deliberately no ground or crown.
   const distant=material('#284e42');
@@ -185,8 +193,8 @@ export function buildGiantTree(group:THREE.Group,floaters:THREE.Object3D[],rando
   }
   const end=points.at(-1)!;
   const endRadial=outward(end),endSide=v(-endRadial.z,0,endRadial.x);
-  leaf(end.clone().addScaledVector(endSide,-2).add(v(0,-.6,0)),1.2,-1.2);
+  life.sprig(end.clone().addScaledVector(endSide,-2).add(v(0,-.8,0)),.85,endSide.clone().negate().add(v(0,-1.6,0)),-1.2);
   const droplet=mesh(group,new THREE.SphereGeometry(.45,20,16),new THREE.MeshPhysicalMaterial({color:'#c0ffde',metalness:.15,roughness:.1,emissive:'#85dbb8',emissiveIntensity:.3,clearcoat:1}),end.clone().addScaledVector(endRadial,-1.2).addScaledVector(endSide,-2.7).add(v(0,3.5,0)));
   droplet.scale.y=1.6;floaters.push(droplet);
-  return {points,overview:v(0,24,83),lookAt:v(0,6,0),followOffset:v(0,6.5,19),cameraPose:treeCameraPose};
+  return {points,overview:v(0,24,83),lookAt:v(0,6,0),followOffset:v(0,6.5,19),cameraPose:treeCameraPose,animate:life.animate};
 }

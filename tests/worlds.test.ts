@@ -81,9 +81,12 @@ test('kjempetreet bærer hele turen og holder figuren synlig fra begge kameravis
       const point=built.route.getPoint(i/200);
       ray.set(point.clone().add(new THREE.Vector3(0,.1,0)),new THREE.Vector3(0,-1,0));ray.far=.6;
       assert.ok(ray.intersectObjects(obstacles,false).length,`Mangler fotfeste ved ${i/2}%`);
-      for(const aspect of [.48,1,1.8])for(const overview of [0,.5,1]) {
+      for(const aspect of [.48,1,1.8])for(const overview of [0,.5,1])for(const pointer of [{x:0,y:0},{x:-.5,y:-.5},{x:.5,y:-.5},{x:-.5,y:.5},{x:.5,y:.5}]) {
         const camera=new THREE.PerspectiveCamera(39,aspect,.1,200);
-        const pose=built.cameraPose!(point,aspect,overview);
+        const pose=built.cameraPose!(point,aspect,overview,pointer);
+        const neutral=built.cameraPose!(point,aspect,overview);
+        assert.ok(pose.target.distanceTo(neutral.target)<1e-9);
+        if(pointer.x)assert.ok(pose.position.distanceTo(neutral.position)>.1);
         camera.position.copy(pose.position);camera.lookAt(pose.target);camera.updateMatrixWorld();
         for(const height of [.3,1.2,2.35]) {
           const target=point.clone().add(new THREE.Vector3(0,height,0));
@@ -128,8 +131,11 @@ test('gigantkorallene bærer hele turen og lar den lille dykkeren være synlig',
       const p=built.route.getPoint(i/80);
       ray.set(p.clone().add(new THREE.Vector3(0,.1,0)),new THREE.Vector3(0,-1,0));ray.far=.65;
       assert.ok(ray.intersectObjects(coralSurfaces,false).length,`Mangler korall under føttene ved ${i/80}`);
-      for(const aspect of [.48,1.8])for(const overview of [0,.5,1]) {
-        const pose=built.cameraPose!(p,aspect,overview),camera=new THREE.PerspectiveCamera(39,aspect,.1,500);
+      for(const aspect of [.48,1.8])for(const overview of [0,.5,1])for(const pointer of [{x:0,y:0},{x:-.5,y:-.5},{x:.5,y:-.5},{x:-.5,y:.5},{x:.5,y:.5}]) {
+        const pose=built.cameraPose!(p,aspect,overview,pointer),camera=new THREE.PerspectiveCamera(39,aspect,.1,500);
+        const neutral=built.cameraPose!(p,aspect,overview);
+        assert.ok(pose.target.distanceTo(neutral.target)<1e-9);
+        if(pointer.x)assert.ok(pose.position.distanceTo(neutral.position)>.1);
         camera.position.copy(pose.position);camera.lookAt(pose.target);camera.updateMatrixWorld();
         for(const height of [.35,1.2,2.4]) {
           const target=p.clone().add(new THREE.Vector3(0,height,0)),direction=target.clone().sub(pose.position);

@@ -4,7 +4,7 @@ import { Component, DestroyRef, ElementRef, ViewEncapsulation, afterNextRender, 
 import { StepsService } from '../steps.service';
 import { osloDate } from '../challenge';
 import { WORLDS } from '../worlds';
-import { DevFailure, DevRole, devActive, devState, expireLogin, fillSteps, setFailure, setRole, setToday, turnOff } from './dev-tools';
+import { DevFailure, DevRole, devActive, devState, expireLogin, fillSteps, sampleMemories, setFailure, setRole, setToday, turnOff } from './dev-tools';
 
 /** Verktøylinje nederst på localhost for å hoppe mellom tilstander uten å logge inn. Lastes som egen chunk. */
 @Component({
@@ -35,6 +35,7 @@ import { DevFailure, DevRole, devActive, devState, expireLogin, fillSteps, setFa
             <button title="Som om innloggingen gikk ut i en annen fane" (click)="expire()">Utløpt innlogging</button>
             <button (click)="walk.emit({ from: walkFrom(), to: walkFrom() + 25000 })">Gåtur ↗</button>
             <button (click)="toast.emit('Skrittene er lagret og delt med gjengen!')">Toast</button>
+            <button title="Fire eksempelbilder fra deltakerne – borte ved omlasting" (click)="samples()">Minner</button>
             <span class="devbar-sep"></span>
             <button class="devbar-off" title="Glem devtilstanden og koble til Firebase igjen" (click)="off()">Av · ekte Firebase</button>
           </div>
@@ -135,6 +136,11 @@ export class DevbarComponent {
   }
   async failure(failure: DevFailure) { await this.activate(); setFailure(this.store, failure); this.done(''); }
   async expire() { await this.activate(); expireLogin(); this.done(''); }
+  async samples() {
+    await this.activate();
+    await sampleMemories();
+    this.done(this.store.mode() === 'shared' ? '' : 'Minnene vises bare for deltakerne – velg Endre, Stine, Lars eller Cathrine.');
+  }
   off() { turnOff(); }
   walkFrom() { return Math.max(0, this.total() - 25000); }
 

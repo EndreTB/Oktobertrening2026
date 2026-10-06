@@ -2,6 +2,8 @@ import { signal } from '@angular/core';
 import { Backend, SignedIn, StoreError } from '../backend';
 import { Entry, PEOPLE, Person, elapsedDays, osloDate, overrideToday, validEntry } from '../challenge';
 import { DEV_KEY, StepsService } from '../steps.service';
+import { Memory, NewMemory, jpegUrl } from '../memories';
+import { photoFrom } from '../photo';
 
 /**
  * Devbaren på localhost: en Firestore i minnet i stedet for Firebase, så alle tilstander kan prøves uten
@@ -29,10 +31,14 @@ function user(role: DevRole): SignedIn | null {
 }
 const visible = () => devState().entries.filter(e => validEntry(e.day, e.steps, osloDate()));
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+/** Minnene ligger bare i minnet (bildene blir for store for localStorage) og forsvinner ved omlasting. */
+const memories = new Map<string, { memory: Memory; image: string }>();
+const memoryList = () => [...memories.values()].map(m => m.memory).sort((a, b) => b.day.localeCompare(a.day) || b.created - a.created);
 
 /** Samme oppførsel som FirebaseBackend, med skriveregelen fra firestore.rules. */
 export class DevBackend implements Backend {
   private listeners = new Set<{ next: (entries: Entry[]) => void; fail: (error: StoreError) => void }>();
+  private memoryListeners = new Set<{ next: (memories: Memory[]) => void; fail: (error: StoreError) => void }>();
   async init() { return user(devState().role); }
   async login() { save({ role: 'Endre' }); return user('Endre'); }
   async logout() { save({ role: 'login' }); }
@@ -51,15 +57,48 @@ export class DevBackend implements Backend {
   /** Litt forsinkelse, så «Lagrer skrittene …» synes. */
   async saveDay(person: Person, day: string, steps: number) {
     await delay(600);
-    const { role, failure, entries } = devState();
-    if (failure === 'offline') throw new StoreError('request', 'Firestore svarte ikke.');
-    if (!user(role)) throw new StoreError('unauthorized', 'Innloggingen har utløpt.');
-    if (failure === 'denied' || role !== person) throw new StoreError('denied', 'Firestore nektet tilgang.');
+    this.check(person);
+    const { entries } = devState();
     save({ entries: [...entries.filter(e => !(e.name === person && e.day === day)), { name: person, day, steps }] });
     this.notify();
   }
-  notify() { [...this.listeners].forEach(l => l.next(visible())); }
-  fail(error: StoreError) { [...this.listeners].forEach(l => l.fail(error)); }
+  watchMemories(next: (memories: Memory[]) => void, fail: (error: StoreError) => void) {
+    const listener = { next, fail };
+    this.memoryListeners.add(listener);
+    if (devState().failure === 'offline') fail(new StoreError('request', 'Firestore svarte ikke.')); else next(memoryList());
+    return () => { this.memoryListeners.delete(listener); };
+  }
+  async saveMemory(person: Person, memory: NewMemory) {
+    await delay(1200);
+    this.check(person);
+    const { id, day, caption, thumb, width, height } = memory;
+    memories.set(id, { memory: { id, name: person, day, caption, thumb: jpegUrl(thumb), width, height, created: Date.now() }, image: jpegUrl(memory.image) });
+    this.notify();
+  }
+  async deleteMemory(id: string) {
+    await delay(500);
+    const memory = memories.get(id)?.memory;
+    if (!memory) throw new StoreError('denied', 'Firestore nektet tilgang.');
+    this.check(memory.name);
+    memories.delete(id);
+    this.notify();
+  }
+  async loadImage(id: string) {
+    await delay(400);
+    if (devState().failure === 'offline') throw new StoreError('request', 'Firestore svarte ikke.');
+    const image = memories.get(id)?.image;
+    if (!image) throw new StoreError('request', 'Fant ikke bildet.');
+    return image;
+  }
+  /** Skriveregelen fra firestore.rules: bare kontoen som eier plassen. */
+  private check(person: Person) {
+    const { role, failure } = devState();
+    if (failure === 'offline') throw new StoreError('request', 'Firestore svarte ikke.');
+    if (!user(role)) throw new StoreError('unauthorized', 'Innloggingen har utløpt.');
+    if (failure === 'denied' || role !== person) throw new StoreError('denied', 'Firestore nektet tilgang.');
+  }
+  notify() { [...this.listeners].forEach(l => l.next(visible())); [...this.memoryListeners].forEach(l => l.next(memoryList())); }
+  fail(error: StoreError) { [...this.listeners, ...this.memoryListeners].forEach(l => l.fail(error)); }
 }
 const backend = new DevBackend();
 
@@ -129,6 +168,35 @@ export function spreadSteps(total: number, days: number): Entry[] {
   })));
   const sum = weights.reduce((s, w) => s + w.weight, 0);
   return weights.map(({ name, day, weight }) => ({ name, day, steps: Math.min(100_000, Math.round(total * weight / sum)) }));
+}
+
+/** Tegner noen enkle eksempelbilder fra hver deltaker, så rutenettet og bildevisningen kan prøves. */
+export async function sampleMemories() {
+  const scenes = [
+    { name: 'Stine', sky: ['#f3c58f', '#c56b4a'], ground: '#3b4a2f', text: 'Solnedgang over Bygdøy', ratio: [4, 3] },
+    { name: 'Lars', sky: ['#bcd7e4', '#6f97ad'], ground: '#2f4b3a', text: 'Regn i Nordmarka. Verdt det.', ratio: [3, 4] },
+    { name: 'Cathrine', sky: ['#e7d9f0', '#9c86b6'], ground: '#4a3f5c', text: '', ratio: [1, 1] },
+    { name: 'Endre', sky: ['#d9ecaa', '#7fa36a'], ground: '#24392d', text: 'Første tur i oktober ✳', ratio: [16, 9] },
+  ] as const;
+  const days = Math.max(1, Math.min(elapsedDays(osloDate()), 31));
+  for (const [index, scene] of scenes.entries()) {
+    const [w, h] = scene.ratio;
+    const canvas = document.createElement('canvas');
+    canvas.width = 1200; canvas.height = Math.round(1200 * h / w);
+    const g = canvas.getContext('2d')!;
+    const sky = g.createLinearGradient(0, 0, 0, canvas.height);
+    sky.addColorStop(0, scene.sky[0]); sky.addColorStop(1, scene.sky[1]);
+    g.fillStyle = sky; g.fillRect(0, 0, canvas.width, canvas.height);
+    g.fillStyle = '#fff6'; g.beginPath(); g.arc(canvas.width * .72, canvas.height * .3, canvas.height * .09, 0, Math.PI * 2); g.fill();
+    g.fillStyle = scene.ground; g.beginPath(); g.moveTo(0, canvas.height);
+    for (let x = 0; x <= canvas.width; x += 60) g.lineTo(x, canvas.height * (.62 + .1 * Math.sin(x / 140 + index)));
+    g.lineTo(canvas.width, canvas.height); g.fill();
+    const photo = await photoFrom(canvas, canvas.width, canvas.height);
+    URL.revokeObjectURL(photo.preview);
+    const day = october(Math.max(1, days - index));
+    memories.set(`eksempel-${index}`, { memory: { id: `eksempel-${index}`, name: scene.name, day, caption: scene.text, thumb: jpegUrl(photo.thumb), width: photo.width, height: photo.height, created: Date.now() - index * 60_000 }, image: jpegUrl(photo.image) });
+  }
+  backend.notify();
 }
 
 export function turnOff() {

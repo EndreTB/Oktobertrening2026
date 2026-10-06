@@ -1,4 +1,5 @@
 import { Entry, Person, PEOPLE, validEntry } from './challenge';
+import type { Memory, NewMemory } from './memories';
 
 /** Web-konfigurasjonen fra Firebase-konsollen (Project settings → Your apps). Verdiene er offentlige. */
 export interface FirebaseConfig {
@@ -38,6 +39,13 @@ export interface Backend {
   /** Live oppdateringer av alle deltakernes dokumenter. Returnerer en funksjon som stopper lyttingen. */
   watch(next: (entries: Entry[]) => void, fail: (error: StoreError) => void): () => void;
   saveDay(person: Person, day: string, steps: number): Promise<void>;
+  /** Live oppdateringer av minnene. Bare deltakerne får lese dem (firestore.rules). */
+  watchMemories(next: (memories: Memory[]) => void, fail: (error: StoreError) => void): () => void;
+  /** Lagrer bildet og minnet samlet. Samme id på nytt overskriver, så et nytt forsøk lager ikke duplikat. */
+  saveMemory(person: Person, memory: NewMemory): Promise<void>;
+  deleteMemory(id: string): Promise<void>;
+  /** Bildet i full størrelse som data-URL. */
+  loadImage(id: string): Promise<string>;
 }
 
 /** Gjør Firestore-dokumentene om til registreringer, og hopper over ukjente personer og ugyldige dager. */

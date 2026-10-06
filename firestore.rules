@@ -11,6 +11,28 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/oktober-2026-plasser/$(person))
         && get(/databases/$(database)/documents/oktober-2026-plasser/$(person)).data.uid == request.auth.uid;
     }
+    // Deltaker: kontoen eier en av plassene. isPerson først, så bare plassen e-posten passer med slås opp.
+    function member() {
+      return (isPerson('endre') && owns('endre')) || (isPerson('stine') && owns('stine'))
+        || (isPerson('lars') && owns('lars')) || (isPerson('cathrine') && owns('cathrine'));
+    }
+    // Samme grenser som src/app/memories.ts. Teksten har litt slingringsmonn utover appens 280 tegn.
+    function validMemory(data) {
+      return data.keys().hasAll(['person', 'day', 'caption', 'thumb', 'width', 'height', 'createdAt'])
+        && data.keys().hasOnly(['person', 'day', 'caption', 'thumb', 'width', 'height', 'createdAt'])
+        && data.person in ['endre', 'stine', 'lars', 'cathrine']
+        && data.day is string && data.day.matches('2026-10-(0[1-9]|[12][0-9]|3[01])')
+        && data.caption is string && data.caption.size() <= 400
+        && data.thumb is bytes && data.thumb.size() <= 80 * 1024
+        && data.width is int && data.width > 0 && data.width <= 4000
+        && data.height is int && data.height > 0 && data.height <= 4000
+        && data.createdAt == request.time;
+    }
+    function validImage(data) {
+      return data.keys().hasAll(['person', 'image']) && data.keys().hasOnly(['person', 'image'])
+        && data.person in ['endre', 'stine', 'lars', 'cathrine']
+        && data.image is bytes && data.image.size() <= 900 * 1024;
+    }
 
     // Én plass per person, eid av én Google-konto: { uid, email }. Den første som passer med navnet tar plassen,
     // deretter er den låst. Plassene kan ikke endres eller slettes fra appen – bare fra Firebase-konsollen.
@@ -36,6 +58,24 @@ service cloud.firestore {
         && request.resource.data.days.size() <= 31
         && request.resource.data.updatedAt == request.time;
       allow delete: if false;
+    }
+
+    // Minner: bilder deltakerne deler. Bare deltakerne ser dem. Hver skriver og sletter bare sine egne,
+    // og et minne kan ikke bytte eier. Miniatyren ligger her, `{ person, day, caption, thumb, width, height, createdAt }`.
+    match /oktober-2026-minner/{id} {
+      allow read: if member();
+      allow create: if validMemory(request.resource.data) && owns(request.resource.data.person);
+      allow update: if validMemory(request.resource.data) && owns(request.resource.data.person)
+        && resource.data.person == request.resource.data.person;
+      allow delete: if owns(resource.data.person);
+    }
+    // Bildet i full størrelse, `{ person, image }`, hentes ett og ett når noen åpner et minne.
+    match /oktober-2026-bilder/{id} {
+      allow get: if member();
+      allow create: if validImage(request.resource.data) && owns(request.resource.data.person);
+      allow update: if validImage(request.resource.data) && owns(request.resource.data.person)
+        && resource.data.person == request.resource.data.person;
+      allow delete: if owns(resource.data.person);
     }
   }
 }

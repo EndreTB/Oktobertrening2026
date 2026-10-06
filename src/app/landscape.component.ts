@@ -13,12 +13,11 @@ export interface JourneyFrame { world: JourneyWorld; steps: number; moving: bool
     @if(cinematic && !failed){
       <div class="map-controls" [attr.aria-label]="'Utforsk '+currentWorld().title">
         <div class="map-view"><button [class.selected]="mapView()==='overview'" [attr.aria-pressed]="mapView()==='overview'" (click)="setView('overview')">Kartoversikt</button><button [class.selected]="mapView()==='follow'" [attr.aria-pressed]="mapView()==='follow'" (click)="setView('follow')">Følg stien <span>↗</span></button></div>
-        <label class="map-explore"><span>UTFORSK STIEN</span><input type="range" min="0" max="100" step="0.5" [value]="exploration() ?? routePosition" [attr.aria-label]="'Utforsk stien i '+currentWorld().title" (input)="explore($any($event.target).value)"><span>{{currentWorld().icon}}</span></label>
       </div>
     }
     @if(failed){<div class="scene-fallback"><span>{{currentWorld().icon}}</span><p>{{currentWorld().title}}</p><small>3D er ikke tilgjengelig her. Du kan fortsatt registrere skritt og følge fremdriften.</small></div>}`,
   styles: [`:host{display:block;width:100%;height:100%;position:relative;overflow:hidden}.landscape-canvas{width:100%;height:100%}.portal-flash{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse,#fff5d9c9,transparent 72%);opacity:0;transition:opacity .7s}.portal-flash.active{opacity:1}.scene-fallback{position:absolute;inset:0;display:grid;place-content:center;text-align:center;color:#eedbb4;padding:30px;gap:16px}.scene-fallback>span{font-size:90px}.scene-fallback p{font:28px Georgia,serif}.scene-fallback small{font-size:12px;max-width:300px;line-height:1.8}
-    .map-controls{position:absolute;top:14px;left:24px;z-index:3;display:grid;gap:10px;width:220px;color:#e2d7ba}.map-view{display:flex;padding:3px;border:1px solid #dccba629;border-radius:30px;background:#101e2de0;backdrop-filter:blur(12px)}.map-view button{flex:1;padding:9px 8px;color:#a7b7be;border-radius:25px;background:transparent;font-size:10px}.map-view button.selected{background:#e5d4ad;color:#20323b}.map-view button span{margin-left:4px}.map-explore{display:flex;align-items:center;gap:10px;padding:0 8px}.map-explore span:first-child{font-size:6px;letter-spacing:1.2px;white-space:nowrap}.map-explore input{width:100%;height:16px;accent-color:#e5d4ad;cursor:pointer}.map-explore span:last-child{font-size:18px}@media(max-width:760px){:host(.explorable) .landscape-canvas{position:absolute;inset:52px 0 0;height:calc(100% - 52px)}.map-controls{top:9px;left:12px;width:calc(100% - 24px);display:flex;gap:10px;align-items:center}.map-view{flex:0 0 182px}.map-view button{font-size:9px;padding:8px 6px}.map-explore{flex:1;min-width:0;padding:0;gap:6px}.map-explore input{min-width:0;height:24px}.map-explore span:first-child{display:none}}@media(prefers-reduced-motion:reduce){.portal-flash{display:none}}`],
+    .map-controls{position:absolute;top:14px;left:24px;z-index:3;display:grid;gap:10px;width:220px;color:#e2d7ba}.map-view{display:flex;padding:3px;border:1px solid #dccba629;border-radius:30px;background:#101e2de0;backdrop-filter:blur(12px)}.map-view button{flex:1;padding:9px 8px;color:#a7b7be;border-radius:25px;background:transparent;font-size:10px}.map-view button.selected{background:#e5d4ad;color:#20323b}.map-view button span{margin-left:4px}@media(max-width:760px){:host(.explorable) .landscape-canvas{position:absolute;inset:52px 0 0;height:calc(100% - 52px)}.map-controls{top:9px;left:12px;width:calc(100% - 24px);display:flex;gap:10px;align-items:center}.map-view{flex:0 0 182px}.map-view button{font-size:9px;padding:8px 6px}}@media(prefers-reduced-motion:reduce){.portal-flash{display:none}}`],
 })
 export class LandscapeComponent implements AfterViewInit, OnDestroy {
   @ViewChild('host', {static:true}) host!: ElementRef<HTMLDivElement>;
@@ -33,11 +32,8 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
   flashing = signal(false);
   failed = false;
   mapView = signal<'overview'|'follow'>('follow');
-  exploration = signal<number|null>(null);
-  routePosition = 0;
   private viewTouched = false;
   setView(view: 'overview'|'follow') { this.viewTouched=true;this.mapView.set(view); }
-  explore(value: string) { this.exploration.set(Number(value)); this.setView('follow'); }
   private renderer?: THREE.WebGLRenderer;
   private scene?: THREE.Scene;
   private built?: WorldScene;
@@ -78,7 +74,8 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
     const legs=journeyLegs(this.fromSteps,this.steps);
     let shownId='',lastLeg=-1,elapsed=0,lastTime=0,lastReport=-1,visible=true,mx=0,my=0,flashAge=5,finishedReported=false;
     let cameraCut=true,overviewBlend=0;
-    const legDurations=legs.map(leg=>leg.world.id==='body'?Math.max(12,(leg.to-leg.from)*55):leg.world.id==='forest'?Math.max(12,(leg.to-leg.from)*40):leg.world.id==='cosmos'?18:12);
+    const cameraPointer={x:0,y:0};
+    const legDurations=legs.map(leg=>leg.world.id==='body'?Math.max(12,(leg.to-leg.from)*55):leg.world.id==='forest'?Math.max(12,(leg.to-leg.from)*40):leg.world.id==='micro'?Math.max(12,(leg.to-leg.from)*40):leg.world.id==='cosmos'?18:12);
     const cameraTarget=new THREE.Vector3(0,3,0);
 
     const desiredPosition=new THREE.Vector3(),desiredTarget=new THREE.Vector3();
@@ -86,12 +83,14 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
     this.resize=new ResizeObserver(size);this.resize.observe(host);size();
     const observer=new IntersectionObserver(entries=>visible=entries[0].isIntersecting);observer.observe(host);this.cleanups.push(()=>observer.disconnect());
     const pointer=(event:PointerEvent)=>{const r=host.getBoundingClientRect();mx=(event.clientX-r.left)/r.width-.5;my=(event.clientY-r.top)/r.height-.5;};
-    host.addEventListener('pointermove',pointer);this.cleanups.push(()=>host.removeEventListener('pointermove',pointer));
+    const pointerLeave=()=>{mx=0;my=0;};
+    host.addEventListener('pointermove',pointer);host.addEventListener('pointerleave',pointerLeave);
+    this.cleanups.push(()=>{host.removeEventListener('pointermove',pointer);host.removeEventListener('pointerleave',pointerLeave);});
     const sceneKey=(info:JourneyWorld,steps:number)=>`${info.id}:${this.person}:${info.id==='light'?Math.floor((steps-TEAM_TARGET)/LIGHT_CYCLE)+':'+Math.floor((steps-TEAM_TARGET)/LIGHT_GLINT):''}`;
     const build=(info:JourneyWorld,flash:boolean,steps:number)=>{
       if(this.built){scene.remove(this.built.group);disposeWorld(this.built.group);}
       this.built=createWorld(info,this.person,steps);scene.add(this.built.group);shownId=sceneKey(info,steps);
-      camera.far=info.id==='body'?500:200;camera.updateProjectionMatrix();
+      camera.far=info.id==='body'?500:info.id==='forest'?350:200;camera.updateProjectionMatrix();
       cameraCut=true;
       renderer.toneMapping=THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure=info.id==='light'?1.05:1.15;renderer.shadowMap.enabled=true;sun.castShadow=true;
@@ -102,12 +101,12 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
       sun.position.set(-18,32,10);
       if(info.id==='body')sun.position.set(-36,88,28);
       Object.assign(sun.shadow.camera,info.id==='body'?{left:-65,right:65,top:85,bottom:-50,far:220}:{left:-25,right:25,top:32,bottom:-22,far:85});sun.shadow.camera.updateProjectionMatrix();
-      const fillColors={mountain:'#b8d7d1',forest:'#96d7ba',body:'#50a7a4',micro:'#91b5ed',cosmos:'#8ccedc',light:'#b5bde4'};
+      const fillColors={mountain:'#b8d7d1',forest:'#96d7ba',body:'#50a7a4',micro:'#ddae72',cosmos:'#8ccedc',light:'#b5bde4'};
       fill.color.set(fillColors[info.id]);
-      scene.fog=new THREE.FogExp2(info.background,info.id==='body'?.011:info.id==='forest'?.01:.007);
+      scene.fog=new THREE.FogExp2(info.background,info.id==='body'?.011:info.id==='forest'?.0065:.007);
       renderer.setClearColor(info.background,this.cinematic&&info.id!=='body'?1:0);
       ambient.groundColor.set(info.background);
-      this.zone.run(()=>{this.currentWorld.set(info);this.flashing.set(flash&&!reduced.matches);this.exploration.set(null);});flashAge=0;
+      this.zone.run(()=>{this.currentWorld.set(info);this.flashing.set(flash&&!reduced.matches);});flashAge=0;
     };
     const animate=(time:number)=>{
       this.frame=requestAnimationFrame(animate);
@@ -130,10 +129,7 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
       } else if(shownId!==sceneKey(info,this.steps))build(info,false,this.steps);
       const built=this.built!;
       built.trail.setDrawRange(0,Math.floor(amount*240)*7*6);
-      const location=this.exploration()!==null?this.exploration()!/100:amount;
-      this.routePosition=location*100;
-      if(this.exploration()!==null)isMoving=false;
-      const point=built.route.getPoint(Math.max(0,Math.min(1,location))),tangent=built.route.getTangent(Math.max(0,Math.min(1,location)));
+      const point=built.route.getPoint(Math.max(0,Math.min(1,amount))),tangent=built.route.getTangent(Math.max(0,Math.min(1,amount)));
       built.wanderer.position.copy(point);
       built.wanderer.rotation.y=Math.atan2(tangent.x,tangent.z);
       const gait=isMoving?Math.sin(elapsed*13):0;
@@ -152,7 +148,10 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
       if(built.cameraPose){
         const overview=!this.cinematic||this.mapView()==='overview'?1:0;
         overviewBlend=cameraCut||reduced.matches?overview:THREE.MathUtils.lerp(overviewBlend,overview,1-Math.exp(-dt*3));
-        const pose=built.cameraPose(point,camera.aspect,overviewBlend);
+        const pointerBlend=1-Math.exp(-dt*5);
+        cameraPointer.x=reduced.matches?0:THREE.MathUtils.lerp(cameraPointer.x,mx,pointerBlend);
+        cameraPointer.y=reduced.matches?0:THREE.MathUtils.lerp(cameraPointer.y,my,pointerBlend);
+        const pose=built.cameraPose(point,camera.aspect,overviewBlend,cameraPointer);
         desiredPosition.copy(pose.position);desiredTarget.copy(pose.target);
         // Keep the immense reef legible when a narrow screen pulls the overview far back.
         if(info.id==='body'&&scene.fog instanceof THREE.FogExp2){
@@ -160,7 +159,7 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
         }
       } else if(this.cinematic){
         const zoom=camera.aspect<.85?1.5:1;
-        const angle=location*.45;
+        const angle=amount*.45;
         desiredPosition.copy(point).add(built.followOffset.clone().applyAxisAngle(new THREE.Vector3(0,1,0),angle).multiplyScalar(zoom));
         desiredTarget.copy(point).add(new THREE.Vector3(0,1.4,0));
         if(done&&!this.viewTouched&&this.mapView()!=='overview')this.zone.run(()=>this.mapView.set('overview'));

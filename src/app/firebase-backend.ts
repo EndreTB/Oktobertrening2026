@@ -1,11 +1,14 @@
 import { initializeApp } from 'firebase/app';
 import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signOut, type Auth, type User } from 'firebase/auth';
-import { collection, doc, getDoc, getDocs, getFirestore, onSnapshot, serverTimestamp, setDoc, type Firestore, type QuerySnapshot } from 'firebase/firestore';
+import { Bytes, collection, doc, getDoc, getDocs, getFirestore, onSnapshot, serverTimestamp, setDoc, writeBatch, type Firestore, type QuerySnapshot, type Timestamp } from 'firebase/firestore';
 import { Backend, COLLECTION, FirebaseConfig, SPOTS, SignedIn, StoreError, docId, toEntries } from './backend';
 import { Person, osloDate } from './challenge';
+import { IMAGES, MEMORIES, Memory, NewMemory, toMemories } from './memories';
 
 /** Så lenge venter vi på at Firestore bekrefter en lagring før vi sier ifra. */
 const SAVE_TIMEOUT = 10_000;
+/** Et bilde er opptil 900 KB, så det får bedre tid på treg mobildekning. */
+const UPLOAD_TIMEOUT = 60_000;
 
 /**
  * Google-innlogging og Firestore. Lastes som egen chunk først når config.json har Firebase-oppsett.
@@ -74,13 +77,56 @@ export class FirebaseBackend implements Backend {
   /** `merge` slår sammen `days`-kartet, så bare denne dagen endres og resten av måneden står urørt. */
   async saveDay(person: Person, day: string, steps: number) {
     if (!this.auth.currentUser) throw new StoreError('unauthorized', 'Innloggingen har utløpt.');
-    const write = setDoc(doc(this.db, COLLECTION, docId(person)), { days: { [day]: steps }, updatedAt: serverTimestamp() }, { merge: true });
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new StoreError('request', 'Firestore svarte ikke.')), SAVE_TIMEOUT); });
-    try { await Promise.race([write, timeout]); }
-    catch (error) { throw storeError(error); }
-    finally { clearTimeout(timer); }
+    await confirmed(setDoc(doc(this.db, COLLECTION, docId(person)), { days: { [day]: steps }, updatedAt: serverTimestamp() }, { merge: true }), SAVE_TIMEOUT);
   }
+
+  watchMemories(next: (memories: Memory[]) => void, fail: (error: StoreError) => void) {
+    return onSnapshot(collection(this.db, MEMORIES), snapshot => next(toMemories(snapshot.docs.map(d => {
+      // Egne minner vises med en gang, før Firestore har satt tidspunktet.
+      const data = d.data({ serverTimestamps: 'estimate' });
+      return { id: d.id, data: { ...data, thumb: data['thumb'] instanceof Bytes ? jpeg(data['thumb']) : null, createdAt: (data['createdAt'] as Timestamp | undefined)?.toMillis() } };
+    }))), error => fail(storeError(error)));
+  }
+
+  /** Bildet og minnet skrives i samme batch, så et minne aldri peker på et bilde som mangler. */
+  async saveMemory(person: Person, memory: NewMemory) {
+    if (!this.auth.currentUser) throw new StoreError('unauthorized', 'Innloggingen har utløpt.');
+    const batch = writeBatch(this.db);
+    batch.set(doc(this.db, IMAGES, memory.id), { person: docId(person), image: Bytes.fromUint8Array(memory.image) });
+    batch.set(doc(this.db, MEMORIES, memory.id), {
+      person: docId(person), day: memory.day, caption: memory.caption, thumb: Bytes.fromUint8Array(memory.thumb),
+      width: memory.width, height: memory.height, createdAt: serverTimestamp(),
+    });
+    await confirmed(batch.commit(), UPLOAD_TIMEOUT);
+  }
+
+  async deleteMemory(id: string) {
+    if (!this.auth.currentUser) throw new StoreError('unauthorized', 'Innloggingen har utløpt.');
+    const batch = writeBatch(this.db);
+    batch.delete(doc(this.db, MEMORIES, id));
+    batch.delete(doc(this.db, IMAGES, id));
+    await confirmed(batch.commit(), SAVE_TIMEOUT);
+  }
+
+  async loadImage(id: string) {
+    let snapshot;
+    try { snapshot = await getDoc(doc(this.db, IMAGES, id)); }
+    catch (error) { throw storeError(error); }
+    const image = snapshot.get('image');
+    if (!(image instanceof Bytes)) throw new StoreError('request', 'Fant ikke bildet.');
+    return jpeg(image);
+  }
+}
+
+const jpeg = (bytes: Bytes) => `data:image/jpeg;base64,${bytes.toBase64()}`;
+
+/** Venter på at Firestore bekrefter skrivingen, men ikke lenger enn `ms`. */
+async function confirmed(write: Promise<void>, ms: number) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new StoreError('request', 'Firestore svarte ikke.')), ms); });
+  try { await Promise.race([write, timeout]); }
+  catch (error) { throw storeError(error); }
+  finally { clearTimeout(timer); }
 }
 
 const entries = (snapshot: QuerySnapshot) => toEntries(snapshot.docs.map(d => ({ id: d.id, data: d.data() })), osloDate());

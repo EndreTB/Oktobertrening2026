@@ -1,7 +1,7 @@
 <a class="skip-link" href="#registrer">Hopp til skrittregistrering</a>
 <header class="header wrap">
   <a href="#" class="brand" aria-label="Oktober, til fots – hjem"><svg viewBox="0 0 40 36" aria-hidden="true"><path d="M2 29 15 7l10 16 5-8 9 14"/><circle cx="31" cy="6" r="3"/></svg><span>oktober<span class="brand-small">TIL FOTS</span></span></a>
-  <nav aria-label="Hovedmeny"><a href="#oversikt">Oversikten</a><a href="#reisen">Reisen vår <span>↗</span></a></nav>
+  <nav aria-label="Hovedmeny"><a href="#oversikt">Oversikten</a><a class="nav-memories" href="#minner">Minner</a><a href="#reisen">Reisen vår <span>↗</span></a></nav>
   <button class="profile" [attr.aria-label]="store.mode()==='login' ? 'Logg inn med Google' : online() ? 'Innlogget som '+(store.name()||store.email())+'. Vis konto' : store.name() ? 'Bytt profil, nå '+store.name() : 'Velg navnet ditt'" (click)="profile()" [attr.aria-haspopup]="store.mode()==='login' ? null : 'dialog'"><span class="mini-avatar">{{store.name()?.charAt(0) || '↟'}}</span><span>{{store.mode()==='login' ? 'Logg inn' : store.name() || (online() ? 'Leser' : 'Hvem er du?')}}</span><span class="chevron">⌄</span></button>
 </header>
 <main>
@@ -75,6 +75,7 @@
         }@else{<p class="daily-hint">Skrittboken åpner 1. oktober.</p>}
       }@else{<p class="daily-hint">{{store.mode()==='loading'?'Henter gjengens skritt …':'Logg inn for å se deltakernes daglige skritt.'}}</p>}
     </section>
+    <app-memories [today]="effectiveToday()" [peopleLabel]="peopleLabel" (toast)="showToast($event)"/>
   </section>
   <section class="journey" id="reisen" aria-labelledby="journey-title"><div class="wrap"><div class="journey-heading"><div><span class="eyebrow">DERE GÅR. HISTORIEN VOKSER.</span><h2 id="journey-title">En oktober.<br><em>Et helt eventyr.</em></h2></div><div class="journey-intro"><p>Ingen vet hva som venter bak neste portal. Skrittene deres åpner nye verdener, én etter én – bare ved å gå finner dere ut hvor reisen fører.</p><span>{{unlocked()}} AV {{chapters.length}} VERDENER ÅPNET <span class="journey-intro-line"></span></span></div></div>
     <div class="world-shelf" aria-label="Utforsk de seks verdenene">

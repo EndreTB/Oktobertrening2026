@@ -5,6 +5,7 @@ import { StepsService } from './steps.service';
 import { CHAPTERS, PEOPLE, TARGET, TEAM_TARGET, Person, dailySteps, elapsedDays, osloDate, stats, validEntry } from './challenge';
 import { JourneyFrame, LandscapeComponent } from './landscape.component';
 import { DevbarComponent } from './dev/devbar.component';
+import { MemoriesComponent } from './memories.component';
 import { isDevHost } from './steps.service';
 
 import { LIGHT_CYCLE, LIGHT_GLINT, JourneyWorld, WORLDS, worldAt, worldProgress } from './worlds';
@@ -12,7 +13,7 @@ import { Seen, readSeen, sinceSeen, snapshot, writeSeen } from './away';
 
 interface Playback { id: number; from: number; to: number; name: string; preview: boolean; away?: string; }
 
-@Component({selector:'app-root',standalone:true,imports:[CommonModule,FormsModule,LandscapeComponent,DevbarComponent],templateUrl:'./app.component.html'})
+@Component({selector:'app-root',standalone:true,imports:[CommonModule,FormsModule,LandscapeComponent,DevbarComponent,MemoriesComponent],templateUrl:'./app.component.html'})
 export class AppComponent {
   readonly store = inject(StepsService);
   readonly people = PEOPLE;
@@ -117,9 +118,10 @@ export class AppComponent {
   isOpen(world: JourneyWorld) { return this.teamTotal()>=world.start; }
   previewWorld(world: JourneyWorld) {
     if(!this.isOpen(world))return;
-    const length=world.id==='light'?LIGHT_CYCLE:world.end-world.start;
-    const fullTour=world.id==='forest'||world.id==='body';
-    this.openPlayback({id:0,from:fullTour?world.start:world.start+length*.15,to:fullTour?world.end-1:world.start+length*.48,name:this.activeName(),preview:true});
+    // Gå fra starten av kartet til der gjengen står nå (eller til portalen i verdener dere har passert).
+    const total=this.teamTotal();
+    const from=world.id==='light'?world.start+Math.floor((total-world.start)/LIGHT_CYCLE)*LIGHT_CYCLE:world.start;
+    this.openPlayback({id:0,from,to:Math.min(total,world.end-1),name:this.activeName(),preview:true});
   }
   nextChapter(){return CHAPTERS.find(c=>this.teamKm()<c.km)||CHAPTERS[CHAPTERS.length-1];}
 }

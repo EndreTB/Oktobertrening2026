@@ -1,6 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { Entry, Person, PEOPLE, osloDate, personFromEmail, validEntry } from './challenge';
 import { AppConfig, Backend, FirebaseConfig, SignedIn, StoreError } from './backend';
+import { Memory, NewMemory, validMemory } from './memories';
 
 export type Mode = 'loading' | 'local' | 'login' | 'shared' | 'readonly' | 'error';
 
@@ -20,10 +21,17 @@ export class StepsService {
   readonly email = signal('');
   /** Personen e-posten passer med, når plassen allerede eies av en annen konto. */
   readonly spotTaken = signal<Person | null>(null);
+  /** Bildene gjengen har delt. Bare deltakerne får se dem. */
+  readonly memories = signal<Memory[]>([]);
+  readonly memoryError = signal('');
+  readonly sharing = signal(false);
   /** Byttes ut i tester. Firebase lastes som egen chunk, bare når det er konfigurert. */
   createBackend = async (config: FirebaseConfig): Promise<Backend> => new (await import('./firebase-backend')).FirebaseBackend(config);
   private backend?: Backend;
   private unwatch?: () => void;
+  private unwatchMemories?: () => void;
+  /** Bilder i full størrelse som er hentet. De eldste glemmes, så minnebruken holder seg nede. */
+  private images = new Map<string, Promise<string>>();
   private inFlight = false;
   private revision = 0;
   private listeningLocal = false;
@@ -82,6 +90,7 @@ export class StepsService {
     this.name.set(person);
     this.mode.set(person ? 'shared' : 'readonly');
     this.watch();
+    this.watchMemories();
   }
 
   private watch() {
@@ -89,6 +98,18 @@ export class StepsService {
     this.unwatch = this.backend?.watch(entries => {
       this.entries.set(entries); this.lastSynced.set(new Date()); this.error.set('');
     }, error => { this.unwatch?.(); this.unwatch = undefined; this.fail(error); });
+  }
+
+  /** Bare deltakerne kan lese minnene (firestore.rules), så lesere lytter ikke. Kalles også fra «Prøv igjen». */
+  watchMemories() {
+    this.unwatchMemories?.(); this.unwatchMemories = undefined;
+    if (this.mode() !== 'shared' || !this.backend) return;
+    this.memoryError.set('');
+    this.unwatchMemories = this.backend.watchMemories(memories => { this.memories.set(memories); this.memoryError.set(''); }, error => {
+      this.unwatchMemories?.(); this.unwatchMemories = undefined;
+      if (error.kind === 'unauthorized') this.fail(error);
+      else this.memoryError.set(error.kind === 'denied' ? 'Firestore nektet tilgang til minnene. Sjekk at reglene i firestore.rules er publisert.' : 'Fikk ikke hentet minnene. Sjekk forbindelsen.');
+    });
   }
 
   private fail(error: unknown) {
@@ -109,6 +130,7 @@ export class StepsService {
   }
   async logout() {
     this.unwatch?.(); this.unwatch = undefined;
+    this.unwatchMemories?.(); this.unwatchMemories = undefined;
     await this.backend?.logout();
     this.signedOut();
   }
@@ -116,8 +138,10 @@ export class StepsService {
   /** Stopper lyttingen og glemmer brukeren og skrittene. Modusen settes av den som kaller. */
   disconnect() {
     this.unwatch?.(); this.unwatch = undefined;
+    this.unwatchMemories?.(); this.unwatchMemories = undefined;
     this.email.set(''); this.lastSynced.set(null);
     this.name.set(null); this.entries.set([]); this.spotTaken.set(null);
+    this.memories.set([]); this.memoryError.set(''); this.images.clear();
   }
   get online() { return this.mode() === 'shared' || this.mode() === 'readonly'; }
 
@@ -172,6 +196,52 @@ export class StepsService {
       return false;
     }
     finally { this.saving.set(false); }
+  }
+  /** Deler et bilde med gjengen. Teksten trimmes; et nytt forsøk med samme id overskriver i stedet for å lage duplikat. */
+  async shareMemory(memory: NewMemory): Promise<boolean> {
+    const name = this.name();
+    if (!name || this.mode() !== 'shared' || !this.backend || this.sharing()) return false;
+    const trimmed = { ...memory, caption: memory.caption.trim() };
+    if (!validMemory(trimmed, osloDate())) { this.memoryError.set('Minnet ble ikke delt. Velg en dato i oktober til og med i dag, og skriv maks 280 tegn.'); return false; }
+    this.sharing.set(true); this.memoryError.set('');
+    try { await this.backend.saveMemory(name, trimmed); return true; }
+    catch (error) {
+      this.memoryError.set(error instanceof StoreError && error.kind === 'unauthorized'
+        ? 'Innloggingen har utløpt, så bildet ble ikke delt. Logg inn igjen og prøv på nytt.'
+        : error instanceof StoreError && error.kind === 'denied'
+        ? 'Firestore nektet delingen. Sjekk at reglene i firestore.rules er publisert.'
+        : 'Bildet ble ikke delt. Prøv igjen når forbindelsen er tilbake.');
+      return false;
+    }
+    finally { this.sharing.set(false); }
+  }
+  /** Bare dine egne minner kan slettes. Bildet forsvinner for alle. */
+  async deleteMemory(memory: Memory): Promise<boolean> {
+    if (!this.backend || this.mode() !== 'shared' || memory.name !== this.name()) return false;
+    this.memoryError.set('');
+    try {
+      await this.backend.deleteMemory(memory.id);
+      this.images.delete(memory.id);
+      this.memories.update(list => list.filter(m => m.id !== memory.id));
+      return true;
+    } catch (error) {
+      this.memoryError.set(error instanceof StoreError && error.kind === 'unauthorized'
+        ? 'Innloggingen har utløpt, så minnet ble ikke slettet. Logg inn igjen og prøv på nytt.'
+        : 'Minnet ble ikke slettet. Prøv igjen når forbindelsen er tilbake.');
+      return false;
+    }
+  }
+  /** Bildet i full størrelse, hentet først når noen åpner det. */
+  image(id: string): Promise<string> {
+    if (!this.backend || this.mode() !== 'shared') return Promise.reject(new StoreError('unauthorized', 'Ikke innlogget.'));
+    let image = this.images.get(id);
+    if (!image) {
+      image = this.backend.loadImage(id);
+      image.catch(() => { if (this.images.get(id) === image) this.images.delete(id); });
+      this.images.set(id, image);
+      if (this.images.size > 12) this.images.delete(this.images.keys().next().value!);
+    }
+    return image;
   }
   shareLink() { return `${location.origin}${location.pathname}`; }
 }

@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {StepsService} from '../src/app/steps.service';
 import {fakeFirestore} from './fake-backend';
+import {jpegUrl} from '../src/app/memories';
 
 const config = {firebase: {apiKey: 'test-key', authDomain: 'test.firebaseapp.com', projectId: 'test', appId: '1:2:web:3'}};
 
@@ -59,6 +60,37 @@ test('Firebase: innlogging, hvem som er hvem, live deling, lesetilgang og feil',
     assert.equal(cathrine2.mode(), 'readonly');
     assert.equal(await cathrine2.save('2026-10-12', 9999), false);
 
+    // Minner: bare deltakerne ser og deler bilder, live, og hver sletter bare sine egne.
+    const photo = {day: '2026-10-11', caption: '  Toppen av Vettakollen  ', image: new Uint8Array([1, 2, 3]), thumb: new Uint8Array([4, 5]), width: 1600, height: 1200};
+    assert.equal(await endre.shareMemory({id: 'tur1', ...photo}), true);
+    assert.deepEqual(stine.memories().map(m => [m.id, m.name, m.day, m.caption]), [['tur1', 'Endre', '2026-10-11', 'Toppen av Vettakollen']]);
+    assert.equal(stine.memories()[0].thumb, jpegUrl(photo.thumb));
+    assert.equal(fake.memories.get('tur1')?.person, 'endre');
+    assert.deepEqual(kari.memories(), []); assert.deepEqual(stine2.memories(), []);
+    assert.equal(await kari.shareMemory({id: 'kari1', ...photo}), false);
+    assert.equal(await stine2.shareMemory({id: 'stine2', ...photo}), false);
+    await assert.rejects(kari.image('tur1'));
+    assert.equal(await endre.shareMemory({id: 'tur2', ...photo, day: '2026-10-13'}), false);
+    assert.match(endre.memoryError(), /ikke delt/);
+    assert.equal(await endre.shareMemory({id: 'tur2', ...photo, caption: 'x'.repeat(281)}), false);
+    assert.equal(fake.memories.size, 1);
+    // Et nytt forsøk med samme id overskriver i stedet for å lage et duplikat.
+    assert.equal(await endre.shareMemory({id: 'tur1', ...photo, caption: 'Vettakollen'}), true);
+    assert.deepEqual(cathrine.memories().map(m => [m.id, m.caption]), [['tur1', 'Vettakollen']]);
+    assert.equal(endre.memoryError(), '');
+    // Stine kan ikke overta eller slette Endres minne.
+    assert.equal(await stine.shareMemory({id: 'tur1', ...photo}), false); assert.match(stine.memoryError(), /nektet/);
+    assert.equal(await stine.deleteMemory(stine.memories()[0]), false);
+    assert.equal(await stine.image('tur1'), jpegUrl(photo.image));
+    assert.equal(await stine.shareMemory({id: 'tur3', ...photo, day: '2026-10-12'}), true);
+    assert.deepEqual(endre.memories().map(m => [m.id, m.name]), [['tur3', 'Stine'], ['tur1', 'Endre']]);
+    fake.state.offline = true;
+    assert.equal(await endre.shareMemory({id: 'tur4', ...photo}), false); assert.match(endre.memoryError(), /forbindelsen/);
+    assert.equal(await endre.deleteMemory(endre.memories()[1]), false); assert.match(endre.memoryError(), /ikke slettet/);
+    fake.state.offline = false;
+    assert.equal(await endre.deleteMemory(endre.memories()[1]), true);
+    assert.deepEqual(stine.memories().map(m => m.id), ['tur3']); assert.equal(fake.images.has('tur1'), false);
+
     fake.state.offline = true; assert.equal(await endre.save('2026-10-12', 14000), false);
     assert.equal(endre.entries().find(e => e.name === 'Endre' && e.day === '2026-10-12')?.steps, 13000); assert.match(endre.error(), /ikke lagret/);
     await endre.refresh(); assert.match(endre.error(), /kontakt med Firebase/);
@@ -69,6 +101,7 @@ test('Firebase: innlogging, hvem som er hvem, live deling, lesetilgang og feil',
 
     await endre.logout();
     assert.equal(endre.mode(), 'login'); assert.equal(endre.name(), null); assert.deepEqual(endre.entries(), []);
+    assert.deepEqual(endre.memories(), []); assert.equal(await endre.shareMemory({id: 'ut', ...photo}), false);
     assert.equal(await endre.save('2026-10-12', 1000), false);
 
     // Uten Firebase-oppsett er siden en lokal forhåndsvisning.
