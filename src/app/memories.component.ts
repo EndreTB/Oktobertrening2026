@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { StepsService } from './steps.service';
 import { CAPTION_MAX, Memory, validMemoryDay } from './memories';
 import { Photo, preparePhoto } from './photo';
+import { Person } from './participants';
 
 /** Bilder deltakerne deler fra turene, om de vil. Bare deltakerne ser dem – andre får en forklaring. */
 @Component({
@@ -77,8 +78,8 @@ import { Photo, preparePhoto } from './photo';
           <div class="memory-viewer-actions">
             <div class="memory-nav">
               <button type="button" (click)="step(-1)" [disabled]="index() <= 0" aria-label="Forrige minne">←</button>
-              <span>{{ index() + 1 }} av {{ store.memories().length }}</span>
-              <button type="button" (click)="step(1)" [disabled]="index() >= store.memories().length - 1" aria-label="Neste minne">→</button>
+              <span>{{ index() + 1 }} av {{ viewingMemories().length }}</span>
+              <button type="button" (click)="step(1)" [disabled]="index() >= viewingMemories().length - 1" aria-label="Neste minne">→</button>
             </div>
             @if (memory.name === store.name()) {
               @if (confirmDelete()) {
@@ -170,9 +171,14 @@ export class MemoriesComponent {
   caption = '';
 
   private readonly viewingId = signal<string | null>(null);
+  private readonly viewingGroup = signal<{ name: Person; day: string } | null>(null);
+  readonly viewingMemories = computed(() => {
+    const group = this.viewingGroup();
+    return this.store.memories().filter(memory => !group || (memory.name === group.name && memory.day === group.day));
+  });
   /** Forsvinner minnet (slettet, eller utlogget), lukkes visningen av seg selv. */
-  readonly current = computed(() => this.store.memories().find(m => m.id === this.viewingId()) ?? null);
-  readonly index = computed(() => this.store.memories().findIndex(m => m.id === this.viewingId()));
+  readonly current = computed(() => this.viewingMemories().find(m => m.id === this.viewingId()) ?? null);
+  readonly index = computed(() => this.viewingMemories().findIndex(m => m.id === this.viewingId()));
   readonly full = signal<string | null>(null);
   readonly imageError = signal(false);
   readonly confirmDelete = signal(false);
@@ -215,16 +221,26 @@ export class MemoriesComponent {
   private clearDraft() { const photo = this.draft(); if (photo) URL.revokeObjectURL(photo.preview); this.draft.set(null); }
 
   open(memory: Memory) {
+    this.viewingGroup.set(null);
+    this.view(memory);
+  }
+  openGroup(name: Person, day: string) {
+    const first = this.store.memories().find(memory => memory.name === name && memory.day === day);
+    if (!first || this.store.mode() !== 'shared') return;
+    this.viewingGroup.set({ name, day });
+    this.view(first);
+  }
+  private view(memory: Memory) {
     this.viewingId.set(memory.id);
     this.full.set(null); this.imageError.set(false); this.confirmDelete.set(false);
     this.store.image(memory.id).then(
       url => { if (this.viewingId() === memory.id) this.full.set(url); },
       () => { if (this.viewingId() === memory.id) this.imageError.set(true); });
   }
-  close() { this.viewingId.set(null); this.full.set(null); this.confirmDelete.set(false); }
+  close() { this.viewingId.set(null); this.viewingGroup.set(null); this.full.set(null); this.confirmDelete.set(false); }
   step(direction: 1 | -1) {
-    const next = this.store.memories()[this.index() + direction];
-    if (next && this.index() >= 0) this.open(next);
+    const next = this.viewingMemories()[this.index() + direction];
+    if (next && this.index() >= 0) this.view(next);
   }
   async remove(memory: Memory) {
     this.deleting.set(true);

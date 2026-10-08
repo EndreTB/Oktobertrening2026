@@ -29,8 +29,20 @@ dialog{position:fixed;inset:0;margin:auto;height:fit-content}body:has(dialog[ope
 .daily-table .is-me{background:#eef2e5}.daily-table .daily-goal{color:#426331;font-weight:600}
 .daily-table .daily-total{font-weight:600}.daily-table .is-today>th{color:#426331}
 .daily-table tbody tr:last-child>*{border-bottom:0}
+.daily-table td.daily-photo-cell{position:relative;padding:0;min-width:104px}
+.daily-photo-space{display:block;min-height:72px;padding:13px 16px;visibility:hidden}
+.daily-photo-button{position:absolute;inset:0;width:100%;height:100%;display:flex;align-items:center;justify-content:flex-end;overflow:hidden;isolation:isolate;padding:13px 16px;background:#24392d;color:#fff;text-align:right;font-size:inherit}
+.daily-photo-background{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;filter:blur(4px);transform:scale(1.15);z-index:-2}
+.daily-photo-button::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,#10201766,#102017bf);z-index:-1}
+.daily-photo-button:hover::before{background:#10201766}
+.daily-photo-button:focus-visible{outline:3px solid var(--lime);outline-offset:-3px}
+.daily-photo-content{display:flex;flex-direction:column;align-items:flex-end;gap:6px;text-shadow:0 1px 3px #0008}
+.daily-photo-steps{font-weight:650}
+.daily-photo-count{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:500}
+.daily-photo-count svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.5}
 .visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 @media(max-width:760px){.daily-table{font-size:11px}.daily-table th,.daily-table td{padding:12px}.daily-card .muted{margin-top:0}}
+@media(max-width:760px){.daily-photo-button,.daily-photo-space{padding:12px}}
 
 /* Minner: lenken får ikke plass ved siden av de to andre på smale telefoner. */
 @media(max-width:440px){.nav-memories{display:none}}

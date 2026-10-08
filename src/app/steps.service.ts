@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, computed, signal } from '@angular/core';
 import { Entry, Person, PEOPLE, osloDate, personFromEmail, validEntry } from './challenge';
 import { AppConfig, Backend, FirebaseConfig, SignedIn, StoreError } from './backend';
 import { Memory, NewMemory, validMemory } from './memories';
@@ -18,6 +18,9 @@ export class StepsService {
   readonly error = signal('');
   readonly saving = signal(false);
   readonly lastSynced = signal<Date | null>(null);
+  /** Innlogging er avklart, og innloggede brukere har fått første skrittdata. */
+  readonly journeyReady = computed(() => this.mode() === 'local' || this.mode() === 'login'
+    || (this.online && this.lastSynced() !== null));
   readonly email = signal('');
   /** Personen e-posten passer med, når plassen allerede eies av en annen konto. */
   readonly spotTaken = signal<Person | null>(null);
@@ -79,6 +82,8 @@ export class StepsService {
    * må kontoen også eie plassen – er den tatt av en annen konto, får du bare følge med.
    */
   private async start(user: SignedIn) {
+    this.mode.set('loading');
+    this.lastSynced.set(null);
     let person = personFromEmail(user.email);
     this.email.set(user.email);
     this.error.set('');

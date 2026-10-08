@@ -1,4 +1,4 @@
-import { afterEveryRender, Component, computed, effect, HostListener, inject, signal, untracked } from '@angular/core';
+import { afterEveryRender, Component, computed, HostListener, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { StepsService } from './steps.service';
@@ -9,9 +9,8 @@ import { MemoriesComponent } from './memories.component';
 import { isDevHost } from './steps.service';
 
 import { LIGHT_CYCLE, LIGHT_GLINT, JourneyWorld, WORLDS, worldAt, worldProgress } from './worlds';
-import { Seen, readSeen, sinceSeen, snapshot, writeSeen } from './away';
 
-interface Playback { id: number; from: number; to: number; name: string; preview: boolean; away?: string; }
+interface Playback { id: number; from: number; to: number; name: string; preview: boolean; }
 
 @Component({selector:'app-root',standalone:true,imports:[CommonModule,FormsModule,LandscapeComponent,DevbarComponent,MemoriesComponent],templateUrl:'./app.component.html'})
 export class AppComponent {
@@ -19,7 +18,13 @@ export class AppComponent {
   readonly people = PEOPLE;
   readonly peopleLabel = new Intl.ListFormat('nb-NO', { type: 'conjunction' }).format(PEOPLE);
   readonly teamTarget = TEAM_TARGET;
-  readonly daily = computed(()=>dailySteps(this.store.entries(),this.effectiveToday()));
+  readonly daily = computed(()=>{
+    const memories = this.store.mode()==='shared' ? this.store.memories() : [];
+    return dailySteps(this.store.entries(),this.effectiveToday()).map(row=>({
+      ...row,
+      people: row.people.map(person=>({...person, memories: memories.filter(memory=>memory.name===person.name&&memory.day===row.day)})),
+    }));
+  });
   readonly chapters = CHAPTERS;
   readonly worlds = WORLDS;
   readonly currentWorld = computed(()=>worldAt(this.teamTotal()));
@@ -54,34 +59,8 @@ export class AppComponent {
   help = signal(false);
   account = signal(false);
   private toastTimer?: ReturnType<typeof setTimeout>;
-  /** Det denne nettleseren sist så. Siden er åpen og synlig = du ser skrittene komme. */
-  private seen: Seen | null = readSeen();
-  /** Satt ved oppstart og når fanen blir synlig igjen: da spilles det du gikk glipp av. */
-  private arrived = true;
-  private ownSave = false;
-  private readonly pageVisible = signal(document.visibilityState !== 'hidden');
-  constructor(){void this.store.initialize().then(()=>this.syncToday());this.selectedDate=this.clampedDate();setInterval(()=>this.today.set(osloDate()),60000);effect(()=>this.catchUp());afterEveryRender(()=>{const dialog=document.querySelector<HTMLDialogElement>('dialog');if(dialog&&!dialog.open)dialog.showModal();});}
+  constructor(){void this.store.initialize().then(()=>this.syncToday());this.selectedDate=this.clampedDate();setInterval(()=>this.today.set(osloDate()),60000);afterEveryRender(()=>{const dialog=document.querySelector<HTMLDialogElement>('dialog');if(dialog&&!dialog.open)dialog.showModal();});}
   @HostListener('window:focus') onFocus(){this.today.set(osloDate());}
-  @HostListener('document:visibilitychange') onVisibility(){const visible=document.visibilityState!=='hidden';if(visible&&!this.pageVisible())this.arrived=true;this.pageVisible.set(visible);}
-  /**
-   * Husker hvor langt gjengen var sist du så siden. Kommer du tilbake (ny økt eller fanen igjen) og de
-   * andre har gått videre, spilles turen av derfra – med nye verdener underveis.
-   */
-  private catchUp(){
-    const ready=this.store.mode()==='local'||(this.online()&&this.store.lastSynced()!==null);
-    if(!ready||!this.pageVisible())return;
-    const now=snapshot(this.store.entries());
-    untracked(()=>{
-      const seen=this.seen;
-      if(this.arrived&&seen&&now.total>seen.total&&!this.ownSave&&!this.playback()){
-        const walkers=sinceSeen(seen,now);
-        this.openPlayback({id:0,from:seen.total,to:now.total,name:walkers[0]?.name??this.activeName(),preview:false,
-          away:walkers.map(p=>`${p.name} +${this.format(p.steps)}`).join(' · ')});
-      }
-      this.arrived=false;
-      this.seen=now;writeSeen(now);
-    });
-  }
   @HostListener('document:keydown.escape') closeDialogs(){this.help.set(false);this.choosing.set(false);this.account.set(false);this.playback.set(null);}
   profile(){if(this.store.mode()==='login')void this.store.login();else if(this.online())this.account.set(true);else this.choosing.set(true);}
   /** Etter oppstart og når devbaren endrer dato eller skritt. */
@@ -102,8 +81,7 @@ export class AppComponent {
     this.formError.set('');
     const before=this.teamTotal();
     const walker=this.activeName();
-    this.ownSave=true;
-    const saved=await this.store.save(this.selectedDate,this.stepValue).finally(()=>this.ownSave=false);
+    const saved=await this.store.save(this.selectedDate,this.stepValue);
     if(saved){this.showToast(this.store.mode()==='shared'?'Skrittene er lagret og delt med gjengen!':'Skrittene er lagret på denne enheten.');
       if(this.teamTotal()>before)this.openPlayback({id:0,from:before,to:this.teamTotal(),name:walker,preview:false});
     }

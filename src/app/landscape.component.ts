@@ -7,7 +7,7 @@ import type { WorldScene } from './world-scene';
 export interface JourneyFrame { world: JourneyWorld; steps: number; moving: boolean; finished: boolean; }
 @Component({
   selector: 'app-landscape', standalone: true,
-  host: {'[class.explorable]': 'cinematic'},
+  host: {'[class.explorable]': 'cinematic', '[class.scene-ready]': 'rendered() || failed', '[attr.aria-busy]': '!rendered() && !failed'},
   template: `<div class="landscape-canvas" #host role="img" [attr.aria-label]="'Turfiguren utforsker '+currentWorld().title" [attr.data-world]="currentWorld().id" [attr.data-moving]="moving()"></div>
     <div class="portal-flash" [class.active]="flashing()" aria-hidden="true"></div>
     @if(cinematic && !failed){
@@ -16,8 +16,8 @@ export interface JourneyFrame { world: JourneyWorld; steps: number; moving: bool
       </div>
     }
     @if(failed){<div class="scene-fallback"><span>{{currentWorld().icon}}</span><p>{{currentWorld().title}}</p><small>3D er ikke tilgjengelig her. Du kan fortsatt registrere skritt og følge fremdriften.</small></div>}`,
-  styles: [`:host{display:block;width:100%;height:100%;position:relative;overflow:hidden}.landscape-canvas{width:100%;height:100%}.portal-flash{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse,#fff5d9c9,transparent 72%);opacity:0;transition:opacity .7s}.portal-flash.active{opacity:1}.scene-fallback{position:absolute;inset:0;display:grid;place-content:center;text-align:center;color:#eedbb4;padding:30px;gap:16px}.scene-fallback>span{font-size:90px}.scene-fallback p{font:28px Georgia,serif}.scene-fallback small{font-size:12px;max-width:300px;line-height:1.8}
-    .map-controls{position:absolute;top:14px;left:24px;z-index:3;display:grid;gap:10px;width:220px;color:#e2d7ba}.map-view{display:flex;padding:3px;border:1px solid #dccba629;border-radius:30px;background:#101e2de0;backdrop-filter:blur(12px)}.map-view button{flex:1;padding:9px 8px;color:#a7b7be;border-radius:25px;background:transparent;font-size:10px}.map-view button.selected{background:#e5d4ad;color:#20323b}.map-view button span{margin-left:4px}@media(max-width:760px){:host(.explorable) .landscape-canvas{position:absolute;inset:52px 0 0;height:calc(100% - 52px)}.map-controls{top:9px;left:12px;width:calc(100% - 24px);display:flex;gap:10px;align-items:center}.map-view{flex:0 0 182px}.map-view button{font-size:9px;padding:8px 6px}}@media(prefers-reduced-motion:reduce){.portal-flash{display:none}}`],
+  styles: [`:host{display:block;width:100%;height:100%;position:relative;overflow:hidden;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .8s ease}:host(.scene-ready){opacity:1;visibility:visible;pointer-events:auto}.landscape-canvas{width:100%;height:100%}.portal-flash{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse,#fff5d9c9,transparent 72%);opacity:0;transition:opacity .7s}.portal-flash.active{opacity:1}.scene-fallback{position:absolute;inset:0;display:grid;place-content:center;text-align:center;color:#eedbb4;padding:30px;gap:16px}.scene-fallback>span{font-size:90px}.scene-fallback p{font:28px Georgia,serif}.scene-fallback small{font-size:12px;max-width:300px;line-height:1.8}
+    .map-controls{position:absolute;top:14px;left:24px;z-index:3;display:grid;gap:10px;width:220px;color:#e2d7ba}.map-view{display:flex;padding:3px;border:1px solid #dccba629;border-radius:30px;background:#101e2de0;backdrop-filter:blur(12px)}.map-view button{flex:1;padding:9px 8px;color:#a7b7be;border-radius:25px;background:transparent;font-size:10px}.map-view button.selected{background:#e5d4ad;color:#20323b}.map-view button span{margin-left:4px}@media(max-width:760px){:host(.explorable) .landscape-canvas{position:absolute;inset:52px 0 0;height:calc(100% - 52px)}.map-controls{top:9px;left:12px;width:calc(100% - 24px);display:flex;gap:10px;align-items:center}.map-view{flex:0 0 182px}.map-view button{font-size:9px;padding:8px 6px}}@media(prefers-reduced-motion:reduce){:host{transition:none}.portal-flash{display:none}}`],
 })
 export class LandscapeComponent implements AfterViewInit, OnDestroy {
   @ViewChild('host', {static:true}) host!: ElementRef<HTMLDivElement>;
@@ -30,6 +30,7 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
   currentWorld = signal(worldAt(0));
   moving = signal(false);
   flashing = signal(false);
+  readonly rendered = signal(false);
   failed = false;
   mapView = signal<'overview'|'follow'>('follow');
   private viewTouched = false;
@@ -47,6 +48,7 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
     this.zone.runOutsideAngular(async () => {
       try { await this.create(); }
       catch {
+        if (this.destroyed) return;
         this.zone.run(() => {
           this.failed = true; this.currentWorld.set(worldAt(this.steps));
           this.frameChange.emit({world:worldAt(this.steps),steps:this.steps,moving:false,finished:true});
@@ -182,6 +184,8 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
         this.zone.run(()=>{this.moving.set(isMoving);this.frameChange.emit({world:info,steps:Math.round(displayed),moving:isMoving,finished:done});});
       }
       renderer.render(scene,camera);
+      // Vis først når riktig verden, turfigur og kamera faktisk er tegnet.
+      if (!this.rendered()) this.zone.run(() => this.rendered.set(true));
     };
     this.frame=requestAnimationFrame(animate);
   }
