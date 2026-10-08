@@ -85,7 +85,7 @@
                             <img class="daily-photo-background" [src]="person.memories[0].thumb" alt="" loading="lazy" decoding="async">
                             <span class="daily-photo-content">
                               <span class="daily-photo-steps">{{person.steps!==null?format(person.steps):'—'}}</span>
-                              <span class="daily-photo-count"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="m4 18 6-5 4 3 3-4 4 6"/></svg>{{person.memories.length}} {{person.memories.length===1?'bilde':'bilder'}}</span>
+                              <span class="daily-photo-count" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="m4 18 6-5 4 3 3-4 4 6"/></svg></span>
                             </span>
                           </button>
                         }@else if(person.steps!==null){
