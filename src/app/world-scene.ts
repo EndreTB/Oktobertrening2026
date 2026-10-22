@@ -18,6 +18,7 @@ export interface WorldScene {
   followOffset: THREE.Vector3;
   cameraPose?: RealmComposition['cameraPose'];
   animate?: RealmComposition['animate'];
+  traversal?: RealmComposition['traversal'];
 }
 const material = (color: THREE.ColorRepresentation, glow = 0) => new THREE.MeshStandardMaterial({ color, roughness: .72, emissive: color, emissiveIntensity: glow });
 function mesh(geometry: THREE.BufferGeometry, mat: THREE.Material, position: [number, number, number], parent: THREE.Object3D) {
@@ -69,10 +70,10 @@ export function createWorld(info: JourneyWorld, person: string, steps = 0): Worl
     const width=mountain?.7:1.05;
     return THREE.MathUtils.lerp(pathHeight,base,THREE.MathUtils.smoothstep(Math.sqrt(nearest),width,width+.8));
   };
-  const cosmos = info.id === 'cosmos';
-  mesh(new THREE.TubeGeometry(route,240,.018,7,false),material(info.color,.12),[0,0,0],group);
+  if(info.id!=='cosmos')mesh(new THREE.TubeGeometry(route,240,.018,7,false),material(info.color,.12),[0,0,0],group);
   const trail = new THREE.TubeGeometry(route,240,.045,7,false);
-  mesh(trail,new THREE.MeshBasicMaterial({color:info.color}),[0,0,0],group);
+  const progressTrail=mesh(trail,new THREE.MeshBasicMaterial({color:info.color}),[0,0,0],group);
+  progressTrail.visible=info.id!=='cosmos';
   const awayFromPath = (x:number,z:number,margin=1.3) => !points.some(p=>Math.hypot(p.x-x,p.z-z)<margin);
 
   if (mountain) {
@@ -158,7 +159,7 @@ export function createWorld(info: JourneyWorld, person: string, steps = 0): Worl
     const arm=new THREE.Group();arm.position.set(side*.36,1.34,0);mesh(new THREE.CapsuleGeometry(.08,.32,3,7),jacket,[0,-.24,0],arm);mesh(new THREE.SphereGeometry(.085,8,6),skin,[0,-.48,0],arm);wanderer.add(arm);limbs.push(arm);
   }
   for(const x of [-.1,.1])mesh(new THREE.SphereGeometry(.035,6,6),boots,[x,1.66,.27],wanderer);
-  wanderer.scale.setScalar(info.id==='body'?.82:info.id==='micro'?.65:1.15);group.add(wanderer);
+  wanderer.scale.setScalar(info.id==='body'?.82:info.id==='micro'?.65:info.id==='cosmos'?.75:1.15);group.add(wanderer);
   wanderer.traverse(object=>{if(object instanceof THREE.Mesh)object.castShadow=true;});
   const halo=mesh(new THREE.TorusGeometry(.55,.025,5,30),new THREE.MeshBasicMaterial({color:info.color}),[0,.03,0],wanderer);halo.rotation.x=-Math.PI/2;
   const portal=new THREE.Group();portal.position.copy(route.getPoint(1));portal.position.y+=1.7;
@@ -177,10 +178,10 @@ export function createWorld(info: JourneyWorld, person: string, steps = 0): Worl
   }
   group.add(portal);
   const moteGeo=new THREE.BufferGeometry(), motes:number[]=[];
-  const moteCount={mountain:8,forest:22,body:14,micro:18,cosmos:35,light:10}[info.id];
+  const moteCount={mountain:8,forest:22,body:14,micro:18,cosmos:0,light:10}[info.id];
   for(let i=0;i<moteCount;i++)motes.push((random()-.5)*35,random()*14+1,(random()-.5)*27);
   moteGeo.setAttribute('position',new THREE.Float32BufferAttribute(motes,3));
   const particles=new THREE.Points(moteGeo,new THREE.PointsMaterial({color:info.color,size:info.id==='cosmos'?.12:.075,transparent:true,opacity:.7}));group.add(particles);
   floaters.forEach(object=>object.userData['baseY']=object.position.y);
-  return {group,route,trail,wanderer,limbs,portal,floaters,particles,cameraPose:composition?.cameraPose,animate:composition?.animate,overview:composition?.overview??new THREE.Vector3(25,24,35),lookAt:composition?.lookAt??new THREE.Vector3(0,info.id==='light'?5:4,-1),followOffset:composition?.followOffset??new THREE.Vector3(8,6,11)};
+  return {group,route,trail,wanderer,limbs,portal,floaters,particles,cameraPose:composition?.cameraPose,animate:composition?.animate,traversal:composition?.traversal,overview:composition?.overview??new THREE.Vector3(25,24,35),lookAt:composition?.lookAt??new THREE.Vector3(0,info.id==='light'?5:4,-1),followOffset:composition?.followOffset??new THREE.Vector3(8,6,11)};
 }

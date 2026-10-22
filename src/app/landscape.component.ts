@@ -77,7 +77,7 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
     let shownId='',lastLeg=-1,elapsed=0,lastTime=0,lastReport=-1,visible=true,mx=0,my=0,flashAge=5,finishedReported=false;
     let cameraCut=true,overviewBlend=0;
     const cameraPointer={x:0,y:0};
-    const legDurations=legs.map(leg=>leg.world.id==='body'?Math.max(12,(leg.to-leg.from)*55):leg.world.id==='forest'?Math.max(12,(leg.to-leg.from)*40):leg.world.id==='micro'?Math.max(12,(leg.to-leg.from)*40):leg.world.id==='cosmos'?18:12);
+    const legDurations=legs.map(leg=>leg.world.id==='body'?Math.max(12,(leg.to-leg.from)*55):leg.world.id==='forest'?Math.max(12,(leg.to-leg.from)*40):leg.world.id==='micro'?Math.max(12,(leg.to-leg.from)*40):leg.world.id==='cosmos'?Math.max(16,(leg.to-leg.from)*55):12);
     const cameraTarget=new THREE.Vector3(0,3,0);
 
     const desiredPosition=new THREE.Vector3(),desiredTarget=new THREE.Vector3();
@@ -100,10 +100,11 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
       ambient.color.set(info.id==='body'?'#9ec6ae':'#ffefd8');
       sun.color.set(info.id==='body'?'#ffe1a2':'#ffe0b5');
       if(info.id==='body'){ambient.intensity=.85;sun.intensity=4.5;fill.intensity=.95;renderer.toneMappingExposure=1.08;}
+      if(info.id==='cosmos'){ambient.intensity=1.2;sun.intensity=3.9;fill.intensity=1.25;sun.color.set('#fff0ce');}
       sun.position.set(-18,32,10);
       if(info.id==='body')sun.position.set(-36,88,28);
       Object.assign(sun.shadow.camera,info.id==='body'?{left:-65,right:65,top:85,bottom:-50,far:220}:{left:-25,right:25,top:32,bottom:-22,far:85});sun.shadow.camera.updateProjectionMatrix();
-      const fillColors={mountain:'#b8d7d1',forest:'#96d7ba',body:'#50a7a4',micro:'#ddae72',cosmos:'#8ccedc',light:'#b5bde4'};
+      const fillColors={mountain:'#b8d7d1',forest:'#96d7ba',body:'#50a7a4',micro:'#ddae72',cosmos:'#a8d6b5',light:'#b5bde4'};
       fill.color.set(fillColors[info.id]);
       scene.fog=new THREE.FogExp2(info.background,info.id==='body'?.011:info.id==='forest'?.0065:.007);
       renderer.setClearColor(info.background,this.cinematic&&info.id!=='body'?1:0);
@@ -132,11 +133,15 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
       const built=this.built!;
       built.trail.setDrawRange(0,Math.floor(amount*240)*7*6);
       const point=built.route.getPoint(Math.max(0,Math.min(1,amount))),tangent=built.route.getTangent(Math.max(0,Math.min(1,amount)));
+      const traversal=built.traversal?.(Math.max(0,Math.min(1,amount)),point);
+      point.y+=traversal?.lift??0;
       built.wanderer.position.copy(point);
+      built.wanderer.rotation.z=traversal?.lean??0;
       built.wanderer.rotation.y=Math.atan2(tangent.x,tangent.z);
-      const gait=isMoving?Math.sin(elapsed*13):0;
+      const gait=isMoving&&!traversal?.airborne?Math.sin(elapsed*13):0;
       built.wanderer.position.y+=Math.abs(gait)*.07;
       built.limbs.forEach((limb,i)=>limb.rotation.x=gait*(i===0||i===3?1:-1)*.6);
+      if(traversal?.airborne)for(const index of [1,3])built.limbs[index].rotation.x=traversal.armAngle;
       if(!reduced.matches){
         built.animate?.(elapsed,dt);
         built.portal.rotation.z=elapsed*.18;built.portal.scale.setScalar((built.portal.userData['baseScale']??1)*(1+Math.sin(elapsed*2)*.025));
