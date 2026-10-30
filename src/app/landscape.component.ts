@@ -1,7 +1,7 @@
 import { TEAM_TARGET } from './participants';
 import { AfterViewInit, Component, ElementRef, EventEmitter, Input, NgZone, OnDestroy, Output, ViewChild, signal } from '@angular/core';
 import type * as THREE from 'three';
-import { LIGHT_CYCLE, LIGHT_GLINT, JourneyWorld, journeyLegs, worldAt, worldProgress } from './worlds';
+import { LIGHT_CYCLE, JourneyWorld, journeyLegs, worldAt, worldProgress } from './worlds';
 import type { WorldScene } from './world-scene';
 
 export interface JourneyFrame { world: JourneyWorld; steps: number; moving: boolean; finished: boolean; }
@@ -16,7 +16,7 @@ export interface JourneyFrame { world: JourneyWorld; steps: number; moving: bool
       </div>
     }
     @if(failed){<div class="scene-fallback"><span>{{currentWorld().icon}}</span><p>{{currentWorld().title}}</p><small>3D er ikke tilgjengelig her. Du kan fortsatt registrere skritt og følge fremdriften.</small></div>}`,
-  styles: [`:host{display:block;width:100%;height:100%;position:relative;overflow:hidden;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .8s ease}:host(.scene-ready){opacity:1;visibility:visible;pointer-events:auto}.landscape-canvas{width:100%;height:100%}.portal-flash{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse,#fff5d9c9,transparent 72%);opacity:0;transition:opacity .7s}.portal-flash.active{opacity:1}.scene-fallback{position:absolute;inset:0;display:grid;place-content:center;text-align:center;color:#eedbb4;padding:30px;gap:16px}.scene-fallback>span{font-size:90px}.scene-fallback p{font:28px Georgia,serif}.scene-fallback small{font-size:12px;max-width:300px;line-height:1.8}
+  styles: [`:host{display:block;width:100%;height:100%;position:relative;overflow:hidden;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .8s ease}:host(.scene-ready){opacity:1;visibility:visible;pointer-events:auto}.landscape-canvas{width:100%;height:100%}.landscape-canvas.universe{background:radial-gradient(ellipse at 50% 42%,#060a18 24%,#0b1022e8 48%,#10192b70 66%,transparent 81%);mask-image:radial-gradient(ellipse at center,#000 49%,#000b 65%,transparent 83%)}.portal-flash{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse,#fff5d9c9,transparent 72%);opacity:0;transition:opacity .7s}.portal-flash.active{opacity:1}.scene-fallback{position:absolute;inset:0;display:grid;place-content:center;text-align:center;color:#eedbb4;padding:30px;gap:16px}.scene-fallback>span{font-size:90px}.scene-fallback p{font:28px Georgia,serif}.scene-fallback small{font-size:12px;max-width:300px;line-height:1.8}
     .map-controls{position:absolute;top:14px;left:24px;z-index:3;display:grid;gap:10px;width:220px;color:#e2d7ba}.map-view{display:flex;padding:3px;border:1px solid #dccba629;border-radius:30px;background:#101e2de0;backdrop-filter:blur(12px)}.map-view button{flex:1;padding:9px 8px;color:#a7b7be;border-radius:25px;background:transparent;font-size:10px}.map-view button.selected{background:#e5d4ad;color:#20323b}.map-view button span{margin-left:4px}@media(max-width:760px){:host(.explorable) .landscape-canvas{position:absolute;inset:52px 0 0;height:calc(100% - 52px)}.map-controls{top:9px;left:12px;width:calc(100% - 24px);display:flex;gap:10px;align-items:center}.map-view{flex:0 0 182px}.map-view button{font-size:9px;padding:8px 6px}}@media(prefers-reduced-motion:reduce){:host{transition:none}.portal-flash{display:none}}`],
 })
 export class LandscapeComponent implements AfterViewInit, OnDestroy {
@@ -77,7 +77,7 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
     let shownId='',lastLeg=-1,elapsed=0,lastTime=0,lastReport=-1,visible=true,mx=0,my=0,flashAge=5,finishedReported=false;
     let cameraCut=true,overviewBlend=0;
     const cameraPointer={x:0,y:0};
-    const legDurations=legs.map(leg=>leg.world.id==='body'?Math.max(12,(leg.to-leg.from)*55):leg.world.id==='forest'?Math.max(12,(leg.to-leg.from)*40):leg.world.id==='micro'?Math.max(12,(leg.to-leg.from)*40):leg.world.id==='cosmos'?Math.max(16,(leg.to-leg.from)*55):12);
+    const legDurations=legs.map(leg=>leg.world.id==='body'?Math.max(12,(leg.to-leg.from)*55):leg.world.id==='forest'?Math.max(12,(leg.to-leg.from)*40):leg.world.id==='micro'?Math.max(12,(leg.to-leg.from)*40):leg.world.id==='cosmos'?Math.max(16,(leg.to-leg.from)*55):leg.world.id==='light'?Math.max(12,(leg.to-leg.from)*50):12);
     const cameraTarget=new THREE.Vector3(0,3,0);
 
     const desiredPosition=new THREE.Vector3(),desiredTarget=new THREE.Vector3();
@@ -88,11 +88,11 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
     const pointerLeave=()=>{mx=0;my=0;};
     host.addEventListener('pointermove',pointer);host.addEventListener('pointerleave',pointerLeave);
     this.cleanups.push(()=>{host.removeEventListener('pointermove',pointer);host.removeEventListener('pointerleave',pointerLeave);});
-    const sceneKey=(info:JourneyWorld,steps:number)=>`${info.id}:${this.person}:${info.id==='light'?Math.floor((steps-TEAM_TARGET)/LIGHT_CYCLE)+':'+Math.floor((steps-TEAM_TARGET)/LIGHT_GLINT):''}`;
+    const sceneKey=(info:JourneyWorld,steps:number)=>`${info.id}:${this.person}:${info.id==='light'?Math.floor((steps-TEAM_TARGET)/LIGHT_CYCLE):''}`;
     const build=(info:JourneyWorld,flash:boolean,steps:number)=>{
       if(this.built){scene.remove(this.built.group);disposeWorld(this.built.group);}
       this.built=createWorld(info,this.person,steps);scene.add(this.built.group);shownId=sceneKey(info,steps);
-      camera.far=info.id==='body'?500:info.id==='forest'?350:200;camera.updateProjectionMatrix();
+      camera.far=info.id==='light'?300:info.id==='body'?500:info.id==='forest'?350:200;camera.updateProjectionMatrix();
       cameraCut=true;
       renderer.toneMapping=THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure=info.id==='light'?1.05:1.15;renderer.shadowMap.enabled=true;sun.castShadow=true;
@@ -101,13 +101,15 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
       sun.color.set(info.id==='body'?'#ffe1a2':'#ffe0b5');
       if(info.id==='body'){ambient.intensity=.85;sun.intensity=4.5;fill.intensity=.95;renderer.toneMappingExposure=1.08;}
       if(info.id==='cosmos'){ambient.intensity=1.2;sun.intensity=3.9;fill.intensity=1.25;sun.color.set('#fff0ce');}
+      if(info.id==='light'){ambient.intensity=.65;sun.intensity=2.6;fill.intensity=.65;ambient.color.set('#aebee6');sun.castShadow=false;}
       sun.position.set(-18,32,10);
       if(info.id==='body')sun.position.set(-36,88,28);
       Object.assign(sun.shadow.camera,info.id==='body'?{left:-65,right:65,top:85,bottom:-50,far:220}:{left:-25,right:25,top:32,bottom:-22,far:85});sun.shadow.camera.updateProjectionMatrix();
       const fillColors={mountain:'#b8d7d1',forest:'#96d7ba',body:'#50a7a4',micro:'#ddae72',cosmos:'#a8d6b5',light:'#b5bde4'};
       fill.color.set(fillColors[info.id]);
-      scene.fog=new THREE.FogExp2(info.background,info.id==='body'?.011:info.id==='forest'?.0065:.007);
-      renderer.setClearColor(info.background,this.cinematic&&info.id!=='body'?1:0);
+      scene.fog=new THREE.FogExp2(info.background,info.id==='light'?.003:info.id==='body'?.011:info.id==='forest'?.0065:.007);
+      renderer.setClearColor(info.background,this.cinematic&&info.id!=='body'&&info.id!=='light'?1:0);
+      host.classList.toggle('universe',info.id==='light');
       ambient.groundColor.set(info.background);
       this.zone.run(()=>{this.currentWorld.set(info);this.flashing.set(flash&&!reduced.matches);});flashAge=0;
     };
@@ -128,7 +130,7 @@ export class LandscapeComponent implements AfterViewInit, OnDestroy {
         displayed=THREE.MathUtils.lerp(leg.startSteps,leg.endSteps,eased);
         isMoving=linear>0&&linear<1&&leg.to>leg.from;
         done=index===legs.length-1&&linear===1;
-        if(index!==lastLeg){build(info,lastLeg>=0,leg.startSteps);lastLeg=index;}
+        if(index!==lastLeg){build(info,lastLeg>=0&&!(info.id==='light'&&legs[lastLeg].world.id==='light'),leg.startSteps);lastLeg=index;}
       } else if(shownId!==sceneKey(info,this.steps))build(info,false,this.steps);
       const built=this.built!;
       built.trail.setDrawRange(0,Math.floor(amount*240)*7*6);

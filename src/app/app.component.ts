@@ -8,7 +8,7 @@ import { DevbarComponent } from './dev/devbar.component';
 import { MemoriesComponent } from './memories.component';
 import { isDevHost } from './steps.service';
 
-import { LIGHT_CYCLE, LIGHT_GLINT, JourneyWorld, WORLDS, worldAt, worldProgress } from './worlds';
+import { LIGHT_CYCLE, JourneyWorld, WORLDS, worldAt, worldProgress } from './worlds';
 
 interface Playback { id: number; from: number; to: number; name: string; preview: boolean; }
 
@@ -30,7 +30,6 @@ export class AppComponent {
   readonly currentWorld = computed(()=>worldAt(this.teamTotal()));
   readonly currentWorldProgress = computed(()=>worldProgress(this.teamTotal())*100);
   readonly beyondGoal = computed(()=>Math.max(0,this.teamTotal()-TEAM_TARGET));
-  readonly nextLight = computed(()=>LIGHT_GLINT-this.beyondGoal()%LIGHT_GLINT);
   readonly playback = signal<Playback|null>(null);
   readonly playbackFrame = signal<JourneyFrame|null>(null);
   private playbackSequence = 0;
